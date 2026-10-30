@@ -56,7 +56,8 @@ def utf_rows(data):
     columns, row_size, row_count = struct.unpack_from(">HHI", data, 24)
     if not 32 <= rows_offset <= strings_offset <= blobs_offset <= len(data):
         raise ValueError("invalid @UTF section offsets")
-    if rows_offset + row_size * row_count > strings_offset or row_count > 100000:
+    if (rows_offset + row_size * row_count > strings_offset
+            or row_count > 100000 or row_count * columns > 1000000):
         raise ValueError("invalid @UTF row bounds")
 
     def string(offset):
@@ -133,7 +134,36 @@ def inspect(source):
     if not isinstance(toc_offset, int) or toc_offset <= 0:
         raise ValueError("archive does not expose a supported TOC")
     entries = read_packet(source, toc_offset, b"TOC ")
+    if header.get("Files") != len(entries):
+        raise ValueError("CPK file count does not match the TOC row count")
     return {"header": header, "entries": entries}
+
+
+def probe_entries(source, report, count):
+    """Inspect bounded prefixes using the CPK's TOC/content-relative base."""
+    header = report["header"]
+    content_offset = header.get("ContentOffset")
+    if not isinstance(content_offset, int) or content_offset <= 0:
+        raise ValueError("no supported content offset for entry probing")
+    base = min(content_offset, header["TocOffset"])
+    samples = []
+    for entry in report["entries"][:count]:
+        relative = entry.get("FileOffset")
+        size = entry.get("FileSize")
+        if not isinstance(relative, int) or relative < 0 or not isinstance(size, int) or size < 32:
+            raise ValueError("invalid entry bounds for header probing")
+        prefix = source.read(base + relative, 32)
+        sample = {"directory": entry.get("DirName"), "name": entry.get("FileName"),
+                  "absolute_offset": base + relative, "is_ice": prefix[:4] == b"ICE\0"}
+        if sample["is_ice"]:
+            version, header_size = struct.unpack_from("<II", prefix, 8)
+            sample.update(version=version, header_size=header_size)
+            if version == 4:
+                declared_size = struct.unpack_from("<I", prefix, 28)[0]
+                sample.update(declared_size=declared_size,
+                              size_matches_toc=declared_size == size)
+        samples.append(sample)
+    return samples
 
 
 def main():
@@ -142,9 +172,14 @@ def main():
     parser.add_argument("--host", help="FTP host; anonymous, read-only access")
     parser.add_argument("--port", type=int, default=1337)
     parser.add_argument("--output", type=Path, help="write a JSON metadata report")
+    parser.add_argument("--probe", type=int, choices=range(0, 17), default=0,
+                        metavar="0..16", help="inspect 32-byte entry prefixes (default: none)")
     args = parser.parse_args()
     try:
-        report = inspect(Source(args.path, args.host, args.port))
+        source = Source(args.path, args.host, args.port)
+        report = inspect(source)
+        if args.probe:
+            report["samples"] = probe_entries(source, report, args.probe)
         text = json.dumps(report, indent=2, ensure_ascii=False)
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)

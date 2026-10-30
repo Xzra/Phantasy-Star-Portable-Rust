@@ -5,6 +5,9 @@ use std::fmt;
 pub struct Model {
     pub positions: Vec<[f32; 3]>,
     pub triangles: Vec<[usize; 3]>,
+    pub texcoords: Vec<[f32; 2]>,
+    /// UV indices per triangle corner; OBJ can share positions across UV seams.
+    pub triangle_uvs: Vec<[Option<usize>; 3]>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -21,12 +24,14 @@ impl fmt::Display for ImportError {
 impl std::error::Error for ImportError {}
 
 impl Model {
-    /// Imports vertices and polygon faces (fan triangulation). Materials, UVs,
-    /// and normals are ignored for this first wireframe viewer.
+    /// Imports vertices, UVs and polygon faces (fan triangulation). Materials
+    /// and authored normals are not imported; viewers can compute flat normals.
     pub fn from_obj(source: &str) -> Result<Self, ImportError> {
         let mut model = Self {
             positions: Vec::new(),
             triangles: Vec::new(),
+            texcoords: Vec::new(),
+            triangle_uvs: Vec::new(),
         };
         for (offset, line) in source.lines().enumerate() {
             let error = |message| ImportError {
@@ -52,21 +57,17 @@ impl Model {
                 Some("f") => {
                     let indices = fields
                         .map(|field| {
-                            let raw: i64 = field
-                                .split('/')
-                                .next()
-                                .unwrap_or("")
-                                .parse()
-                                .map_err(|_| error("invalid face index"))?;
-                            let index = if raw < 0 {
-                                model.positions.len() as i64 + raw
-                            } else {
-                                raw - 1
+                            let mut parts = field.split('/');
+                            let position =
+                                resolve_index(parts.next().unwrap_or(""), model.positions.len())
+                                    .map_err(error)?;
+                            let uv = match parts.next() {
+                                Some("") | None => None,
+                                Some(raw) => {
+                                    Some(resolve_index(raw, model.texcoords.len()).map_err(error)?)
+                                }
                             };
-                            if raw == 0 || index < 0 || index >= model.positions.len() as i64 {
-                                return Err(error("face index out of bounds"));
-                            }
-                            Ok(index as usize)
+                            Ok((position, uv))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     if indices.len() < 3 {
@@ -75,8 +76,25 @@ impl Model {
                     for i in 1..indices.len() - 1 {
                         model
                             .triangles
-                            .push([indices[0], indices[i], indices[i + 1]]);
+                            .push([indices[0].0, indices[i].0, indices[i + 1].0]);
+                        model
+                            .triangle_uvs
+                            .push([indices[0].1, indices[i].1, indices[i + 1].1]);
                     }
+                }
+                Some("vt") => {
+                    let mut uv = [0.0_f32; 2];
+                    for coordinate in &mut uv {
+                        *coordinate = fields
+                            .next()
+                            .ok_or_else(|| error("UV needs two coordinates"))?
+                            .parse()
+                            .map_err(|_| error("invalid UV coordinate"))?;
+                        if !coordinate.is_finite() {
+                            return Err(error("UV coordinate must be finite"));
+                        }
+                    }
+                    model.texcoords.push(uv);
                 }
                 _ => {}
             }
@@ -103,16 +121,49 @@ impl Model {
     }
 }
 
+fn resolve_index(raw: &str, count: usize) -> Result<usize, &'static str> {
+    let raw: i64 = raw.parse().map_err(|_| "invalid face index")?;
+    let index = if raw < 0 { count as i64 + raw } else { raw - 1 };
+    if raw == 0 || index < 0 || index >= count as i64 {
+        return Err("face index out of bounds");
+    }
+    Ok(index as usize)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    const QUAD: &str = "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf -4/1 -3/2 -2/3 -1/4 # quad";
+    const QUAD: &str = "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nf -4/1 -3/2 -2/3 -1/4 # quad";
 
     #[test]
     fn triangulates_relative_indices_and_computes_bounds() {
         let model = Model::from_obj(QUAD).unwrap();
         assert_eq!(model.triangles, vec![[0, 1, 2], [0, 2, 3]]);
+        assert_eq!(
+            model.triangle_uvs,
+            vec![[Some(0), Some(1), Some(2)], [Some(0), Some(2), Some(3)]]
+        );
         assert_eq!(model.bounds(), ([0.0, 0.0, 0.0], [1.0, 1.0, 0.0]));
+    }
+
+    #[test]
+    fn keeps_uv_seams_and_supports_missing_or_relative_uvs() {
+        let source = "v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 1\nf 1/1 2/1 3/1\nf 1/-1 2//1 3";
+        let model = Model::from_obj(source).unwrap();
+        assert_eq!(model.triangles, vec![[0, 1, 2], [0, 1, 2]]);
+        assert_eq!(
+            model.triangle_uvs,
+            vec![[Some(0); 3], [Some(1), None, None]]
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_uv_references_and_reports_source_line() {
+        for face in ["f 1/0 2 3", "f 1/2 2 3", "f 1/-2 2 3"] {
+            let source = format!("v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\n{face}");
+            assert_eq!(Model::from_obj(&source).unwrap_err().line, 5);
+        }
+        assert!(Model::from_obj("vt inf 0").is_err());
     }
 
     #[test]

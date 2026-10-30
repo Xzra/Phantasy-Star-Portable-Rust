@@ -13,6 +13,11 @@ The translation archive indexes 66 `.ice` entries, with directory names includin
 been imported from them. Header metadata reports TOC offset 2048 and content
 offset 6144. The header's file count matches the 66 parsed TOC rows.
 
+Two entry prefix probes (`apc_name_text.ice` and `actor/ac_name_text.ice`) confirm
+`ICE\0` signatures and version 4 at TOC-relative base 2048. The version-4 size
+field at byte 28 matches each entry's TOC file size. These are metadata
+observations only; ICE decompression and payload import are not implemented.
+
 The base archive's sampled bytes alone do not identify a supported format. This
 may reflect the installation's protection/view through FTP; that is a hypothesis,
 not a confirmed diagnosis. The translation archive does not establish that the
@@ -25,7 +30,7 @@ Python 3 standard library only; no extraction, uploads, or remote writes:
 ```sh
 python3 tools/inspect_cpk.py \
   /ux0:/rePatch/PCSG00141/data/vita/patches/999.cpk \
-  --host 10.0.0.7 --port 1337 --output local/vita-patch-index.json
+  --host 10.0.0.7 --port 1337 --probe 2 --output local/vita-patch-index.json
 
 python3 tools/inspect_cpk.py /path/to/readable.cpk --output local/cpk-index.json
 ```
@@ -36,8 +41,10 @@ anonymous login and fresh connections for bounded reads because VitaShell listin
 and abort behavior differs from a full FTP server. Reports are ignored by Git.
 
 This is a metadata inspector, not a CPK extractor or ICE decoder. File offsets
-remain in their original TOC form; validate the container's offset base before
-payload access. Encrypted UTF tables, ITOC-only archives, compressed entries,
+remain in their original TOC form. Optional `--probe 0..16` reads 32-byte prefixes
+using the smaller of the content and TOC offsets as the base, and reports whether
+they expose ICE headers; it never assumes that unknown bytes are decoded assets.
+Encrypted UTF tables, ITOC-only archives, compressed entries,
 and arbitrary game formats are not supported.
 
 Next, compare the upcoming PC installation with this layout and locate readable
