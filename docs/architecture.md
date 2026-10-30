@@ -31,13 +31,21 @@ texture uses OBJ UVs with the V coordinate flipped for image orientation. Faces
 without UVs sample the texture at one corner. Meshes are split into 1500-triangle
 batches to remain below the renderer's default capacities and 16-bit index limit.
 
+OBJ material names are interned and assigned per triangle. The client resolves
+MTL libraries relative to the OBJ file; later libraries override earlier names.
+The embedded sample also embeds its original MTL. Only named materials and
+three-channel diffuse RGB (`Kd`, range 0–1) are interpreted. Missing libraries,
+invalid libraries, and undefined names produce visible warnings and use fallback
+colors so geometry can still be inspected. Texture maps, transparency, and other
+MTL properties are ignored; an explicit texture image still applies globally.
+
 ## Next model-viewer work
 
 1. Identify readable source geometry and payload versions from a game installation
    or user-provided export; filenames alone do not establish compatibility.
 2. Add importer adapters with original/synthetic fixtures. Keep proprietary
    archives and extracted payloads in ignored local storage.
-3. Extend single-texture rendering with material assignments.
+3. Extend material colors with texture maps and transparency as real assets require.
 4. Add skeleton/animation import after validating an actual model format.
 5. Add an asset browser and per-file import errors.
 

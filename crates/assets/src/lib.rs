@@ -2,6 +2,7 @@
 use std::fmt;
 
 pub mod catalog;
+pub mod materials;
 
 #[derive(Debug, PartialEq)]
 pub struct Model {
@@ -13,6 +14,9 @@ pub struct Model {
     pub normals: Vec<[f32; 3]>,
     /// Authored normals are indexed per corner so hard edges remain distinct.
     pub triangle_normals: Vec<[Option<usize>; 3]>,
+    pub material_libraries: Vec<String>,
+    pub material_names: Vec<String>,
+    pub triangle_materials: Vec<Option<usize>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -29,8 +33,8 @@ impl fmt::Display for ImportError {
 impl std::error::Error for ImportError {}
 
 impl Model {
-    /// Imports vertices, UVs and polygon faces (fan triangulation). Materials
-    /// are not imported. Authored normals retain their separate corner indices.
+    /// Imports geometry and material assignments. Companion MTL files are resolved
+    /// separately; this parser does no file I/O.
     pub fn from_obj(source: &str) -> Result<Self, ImportError> {
         let mut model = Self {
             positions: Vec::new(),
@@ -39,7 +43,11 @@ impl Model {
             triangle_uvs: Vec::new(),
             normals: Vec::new(),
             triangle_normals: Vec::new(),
+            material_libraries: Vec::new(),
+            material_names: Vec::new(),
+            triangle_materials: Vec::new(),
         };
+        let mut current_material = None;
         for (offset, line) in source.lines().enumerate() {
             let error = |message| ImportError {
                 line: offset + 1,
@@ -99,6 +107,7 @@ impl Model {
                         model
                             .triangle_normals
                             .push([indices[0].2, indices[i].2, indices[i + 1].2]);
+                        model.triangle_materials.push(current_material);
                     }
                 }
                 Some("vt") => {
@@ -128,6 +137,28 @@ impl Model {
                         }
                     }
                     model.normals.push(normal);
+                }
+                Some("mtllib") => {
+                    let libraries: Vec<_> = fields.map(str::to_owned).collect();
+                    if libraries.is_empty() {
+                        return Err(error("material library name is missing"));
+                    }
+                    model.material_libraries.extend(libraries);
+                }
+                Some("usemtl") => {
+                    let name = fields.collect::<Vec<_>>().join(" ");
+                    if name.is_empty() {
+                        return Err(error("material name is missing"));
+                    }
+                    let index = model
+                        .material_names
+                        .iter()
+                        .position(|existing| *existing == name)
+                        .unwrap_or_else(|| {
+                            model.material_names.push(name);
+                            model.material_names.len() - 1
+                        });
+                    current_material = Some(index);
                 }
                 _ => {}
             }
@@ -233,5 +264,20 @@ mod tests {
             assert_eq!(Model::from_obj(&source).unwrap_err().line, 5);
         }
         assert!(Model::from_obj("vn 0 inf 0").is_err());
+    }
+
+    #[test]
+    fn material_assignments_follow_triangulation_and_switches() {
+        let source = "mtllib first.mtl second.mtl\nv 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf 1 2 3\nusemtl blue crystal\nf 1 2 3 4\nusemtl pink\nf 1 2 3\nusemtl blue crystal\nf 1 2 3";
+        let model = Model::from_obj(source).unwrap();
+        assert_eq!(model.material_libraries, ["first.mtl", "second.mtl"]);
+        assert_eq!(model.material_names, ["blue crystal", "pink"]);
+        assert_eq!(
+            model.triangle_materials,
+            vec![None, Some(0), Some(0), Some(1), Some(0)]
+        );
+        for directive in ["usemtl", "mtllib"] {
+            assert!(Model::from_obj(directive).is_err());
+        }
     }
 }

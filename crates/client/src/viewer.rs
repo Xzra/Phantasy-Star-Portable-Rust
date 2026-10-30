@@ -1,4 +1,5 @@
 use macroquad::prelude::*;
+use psp_assets::materials::MaterialLibrary;
 use psp_assets::Model;
 use std::path::{Path, PathBuf};
 
@@ -10,6 +11,7 @@ struct Scene {
     positions: Vec<Vec3>,
     solid: Vec<Mesh>,
     textured: Option<Vec<Mesh>>,
+    warnings: Vec<String>,
 }
 
 impl Scene {
@@ -21,14 +23,56 @@ impl Scene {
             Some(path) => std::fs::read_to_string(path)?,
             None => include_str!("../../../assets/models/training-crystal.obj").to_owned(),
         };
-        Self::from_obj(&source, texture)
+        let model = Model::from_obj(&source)?;
+        let mut materials = MaterialLibrary::default();
+        let mut warnings = Vec::new();
+        for filename in &model.material_libraries {
+            let material_path = path
+                .and_then(Path::parent)
+                .unwrap_or(Path::new("."))
+                .join(filename);
+            let source = if path.is_none() && filename == "training-crystal.mtl" {
+                Ok(include_str!("../../../assets/models/training-crystal.mtl").to_owned())
+            } else {
+                std::fs::read_to_string(&material_path)
+            };
+            match source {
+                Ok(source) => match MaterialLibrary::from_mtl(&source) {
+                    Ok(library) => materials.materials.extend(library.materials),
+                    Err(error) => warnings.push(format!("{}: {error}", material_path.display())),
+                },
+                Err(error) => warnings.push(format!("{}: {error}", material_path.display())),
+            }
+        }
+        for name in &model.material_names {
+            if !materials.materials.contains_key(name) {
+                warnings.push(format!(
+                    "Material '{name}' is undefined; using fallback color"
+                ));
+            }
+        }
+        Ok(Self::from_model(model, texture, &materials, warnings))
     }
 
+    #[cfg(test)]
     fn from_obj(
         source: &str,
         texture: Option<&Texture2D>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let model = Model::from_obj(source)?;
+        Ok(Self::from_model(
+            Model::from_obj(source)?,
+            texture,
+            &MaterialLibrary::default(),
+            Vec::new(),
+        ))
+    }
+
+    fn from_model(
+        model: Model,
+        texture: Option<&Texture2D>,
+        materials: &MaterialLibrary,
+        warnings: Vec<String>,
+    ) -> Self {
         let (min, max) = model.bounds();
         // Use f64 intermediates so extreme finite source coordinates cannot overflow.
         let center = std::array::from_fn::<_, 3, _>(|i| (min[i] as f64 + max[i] as f64) * 0.5);
@@ -47,18 +91,25 @@ impl Scene {
                 )
             })
             .collect();
-        let solid = build_meshes(&model, &positions, None);
-        let textured = texture.map(|texture| build_meshes(&model, &positions, Some(texture)));
-        Ok(Self {
+        let solid = build_meshes(&model, &positions, None, materials);
+        let textured =
+            texture.map(|texture| build_meshes(&model, &positions, Some(texture), materials));
+        Self {
             model,
             positions,
             solid,
             textured,
-        })
+            warnings,
+        }
     }
 }
 
-fn build_meshes(model: &Model, positions: &[Vec3], texture: Option<&Texture2D>) -> Vec<Mesh> {
+fn build_meshes(
+    model: &Model,
+    positions: &[Vec3],
+    texture: Option<&Texture2D>,
+    materials: &MaterialLibrary,
+) -> Vec<Mesh> {
     let light = vec3(0.4, 0.8, 0.6).normalize();
     model
         .triangles
@@ -75,6 +126,16 @@ fn build_meshes(model: &Model, positions: &[Vec3], texture: Option<&Texture2D>) 
                 let normal = (b - a).cross(c - a).normalize_or_zero();
                 let uvs = model.triangle_uvs[chunk * TRIANGLES_PER_MESH + local];
                 let normals = model.triangle_normals[chunk * TRIANGLES_PER_MESH + local];
+                let material = model.triangle_materials[chunk * TRIANGLES_PER_MESH + local]
+                    .and_then(|index| materials.materials.get(&model.material_names[index]));
+                let diffuse =
+                    material
+                        .map(|material| material.diffuse)
+                        .unwrap_or(if texture.is_some() {
+                            [1.0; 3]
+                        } else {
+                            [0.35, 0.75, 1.0]
+                        });
                 for corner in 0..3 {
                     let shading_normal = normals[corner]
                         .map(|index| {
@@ -89,11 +150,12 @@ fn build_meshes(model: &Model, positions: &[Vec3], texture: Option<&Texture2D>) 
                         })
                         .unwrap_or(normal);
                     let intensity = 0.25 + 0.75 * shading_normal.dot(light).max(0.0);
-                    let color = if texture.is_some() {
-                        Color::new(intensity, intensity, intensity, 1.0)
-                    } else {
-                        Color::new(0.35 * intensity, 0.75 * intensity, intensity, 1.0)
-                    };
+                    let color = Color::new(
+                        diffuse[0] * intensity,
+                        diffuse[1] * intensity,
+                        diffuse[2] * intensity,
+                        1.0,
+                    );
                     let uv = uvs[corner]
                         .map(|index| model.texcoords[index])
                         .unwrap_or([0.0; 2]);
@@ -285,6 +347,14 @@ async fn main() {
             let message: String = import_error.chars().take(120).collect();
             draw_text(&message, 20.0, 132.0, 18.0, ORANGE);
         }
+        if let Some(warning) = scene.warnings.first() {
+            let message: String =
+                format!("{} material warning(s): {warning}", scene.warnings.len())
+                    .chars()
+                    .take(120)
+                    .collect();
+            draw_text(&message, 20.0, 156.0, 18.0, YELLOW);
+        }
         next_frame().await;
     }
 }
@@ -306,6 +376,9 @@ mod tests {
         let scene = Scene::load(None, None).unwrap();
         assert_eq!(scene.model.triangles.len(), 8);
         assert_eq!(scene.model.texcoords.len(), 3);
+        assert!(scene.warnings.is_empty());
+        assert!(scene.solid[0].vertices[0].color[1] > scene.solid[0].vertices[0].color[0]);
+        assert!(scene.solid[0].vertices[12].color[0] > scene.solid[0].vertices[12].color[1]);
         assert!(Scene::from_obj("v NaN 0 0", None).is_err());
         // Constructing a replacement does not mutate the currently loaded scene.
         assert_eq!(scene.model.triangles.len(), 8);
@@ -320,7 +393,8 @@ mod tests {
         large.triangles = vec![[0, 1, 2]; TRIANGLES_PER_MESH + 1];
         large.triangle_uvs = vec![[Some(0); 3]; TRIANGLES_PER_MESH + 1];
         large.triangle_normals = vec![[None; 3]; TRIANGLES_PER_MESH + 1];
-        let meshes = build_meshes(&large, &positions, None);
+        large.triangle_materials = vec![None; TRIANGLES_PER_MESH + 1];
+        let meshes = build_meshes(&large, &positions, None, &MaterialLibrary::default());
         assert_eq!(meshes.len(), 2);
         assert_eq!(meshes[0].indices.len(), TRIANGLES_PER_MESH * 3);
         assert_eq!(meshes[1].indices, vec![0, 1, 2]);
@@ -336,7 +410,7 @@ mod tests {
     #[test]
     fn degenerate_faces_produce_finite_vertices() {
         let model = Model::from_obj("v 0 0 0\nf 1 1 1").unwrap();
-        let meshes = build_meshes(&model, &[Vec3::ZERO], None);
+        let meshes = build_meshes(&model, &[Vec3::ZERO], None, &MaterialLibrary::default());
         assert_eq!(meshes[0].vertices.len(), 3);
         assert!(meshes[0].vertices.iter().all(|v| v.position.is_finite()));
     }
@@ -346,9 +420,37 @@ mod tests {
         let model =
             Model::from_obj("v 0 0 0\nv 1 0 0\nv 0 1 0\nvn 0 0 -3e38\nvn 0 0 0\nf 1//1 2//2 3")
                 .unwrap();
-        let meshes = build_meshes(&model, &[Vec3::ZERO, Vec3::X, Vec3::Y], None);
+        let meshes = build_meshes(
+            &model,
+            &[Vec3::ZERO, Vec3::X, Vec3::Y],
+            None,
+            &MaterialLibrary::default(),
+        );
         let vertices = &meshes[0].vertices;
         assert!(vertices[0].color[2] < vertices[1].color[2]);
         assert_eq!(vertices[1].color, vertices[2].color);
+    }
+
+    #[test]
+    fn loads_relative_material_files_and_keeps_geometry_when_library_is_missing() {
+        let directory = std::env::temp_dir().join(format!("psp-materials-{}", std::process::id()));
+        std::fs::create_dir_all(directory.join("materials")).unwrap();
+        let path = directory.join("sample.obj");
+        std::fs::write(
+            &path,
+            "mtllib materials/color.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl red\nf 1 2 3",
+        )
+        .unwrap();
+        let material_path = directory.join("materials/color.mtl");
+        std::fs::write(&material_path, "newmtl red\nKd 1 0 0").unwrap();
+        let scene = Scene::load(Some(&path), None).unwrap();
+        assert!(scene.warnings.is_empty());
+        assert_eq!(scene.solid[0].vertices[0].color[1], 0);
+        assert!(scene.solid[0].vertices[0].color[0] > 0);
+        std::fs::remove_file(&material_path).unwrap();
+        let scene = Scene::load(Some(&path), None).unwrap();
+        assert_eq!(scene.model.triangles.len(), 1);
+        assert_eq!(scene.warnings.len(), 2);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

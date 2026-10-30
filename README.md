@@ -23,8 +23,10 @@ A working graphics/display
 environment is required. OBJ polygon faces are fan-triangulated; use convex faces
 or pre-triangulated models. OBJ UV seams and relative UV indices are supported;
 the texture option applies one image to the whole model. Hard edges and separate
-normal indices are preserved. Material files, animation, and proprietary game
-models are not supported yet.
+normal indices are preserved. Companion MTL files supply diffuse RGB (`Kd`)
+colors per material. Missing or malformed MTL files produce warnings and preserve
+the geometry. Automatic material texture maps, transparency, animation, and
+proprietary game models are not supported yet.
 Drop another OBJ onto the window to open it, or press L to reload the current
 file after editing it. Import errors appear in the window and preserve the
 previous model. The explicitly supplied texture stays selected across model loads.
