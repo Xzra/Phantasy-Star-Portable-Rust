@@ -1,8 +1,62 @@
 use macroquad::prelude::*;
 use psp_assets::Model;
+use std::path::{Path, PathBuf};
 
 // Stay below Macroquad's default per-draw vertex/index capacities and u16 limits.
 const TRIANGLES_PER_MESH: usize = 1500;
+
+struct Scene {
+    model: Model,
+    positions: Vec<Vec3>,
+    solid: Vec<Mesh>,
+    textured: Option<Vec<Mesh>>,
+}
+
+impl Scene {
+    fn load(
+        path: Option<&Path>,
+        texture: Option<&Texture2D>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let source = match path {
+            Some(path) => std::fs::read_to_string(path)?,
+            None => include_str!("../../../assets/models/training-crystal.obj").to_owned(),
+        };
+        Self::from_obj(&source, texture)
+    }
+
+    fn from_obj(
+        source: &str,
+        texture: Option<&Texture2D>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let model = Model::from_obj(source)?;
+        let (min, max) = model.bounds();
+        // Use f64 intermediates so extreme finite source coordinates cannot overflow.
+        let center = std::array::from_fn::<_, 3, _>(|i| (min[i] as f64 + max[i] as f64) * 0.5);
+        let extent = (0..3)
+            .map(|i| max[i] as f64 - min[i] as f64)
+            .fold(0.0_f64, f64::max)
+            .max(0.001);
+        let positions: Vec<Vec3> = model
+            .positions
+            .iter()
+            .map(|p| {
+                vec3(
+                    ((p[0] as f64 - center[0]) / extent * 2.0) as f32,
+                    ((p[1] as f64 - center[1]) / extent * 2.0) as f32,
+                    ((p[2] as f64 - center[2]) / extent * 2.0) as f32,
+                )
+            })
+            .collect();
+        let solid = build_meshes(&model, &positions, None);
+        let textured = texture.map(|texture| build_meshes(&model, &positions, Some(texture)));
+        Ok(Self {
+            model,
+            positions,
+            solid,
+            textured,
+        })
+    }
+}
 
 fn build_meshes(model: &Model, positions: &[Vec3], texture: Option<&Texture2D>) -> Vec<Mesh> {
     let light = vec3(0.4, 0.8, 0.6).normalize();
@@ -55,41 +109,6 @@ async fn main() {
             return;
         }
     };
-    let source = match path {
-        Some(path) => match std::fs::read_to_string(path) {
-            Ok(source) => source,
-            Err(error) => {
-                eprintln!("Cannot read {path}: {error}");
-                return;
-            }
-        },
-        None => include_str!("../../../assets/models/training-crystal.obj").to_owned(),
-    };
-    let model = match Model::from_obj(&source) {
-        Ok(model) => model,
-        Err(error) => {
-            eprintln!("{error}");
-            return;
-        }
-    };
-    let (min, max) = model.bounds();
-    // Normalize in f64 so even extreme but finite OBJ coordinates fit safely.
-    let center = std::array::from_fn::<_, 3, _>(|i| (min[i] as f64 + max[i] as f64) * 0.5);
-    let extent = (0..3)
-        .map(|i| max[i] as f64 - min[i] as f64)
-        .fold(0.0_f64, f64::max)
-        .max(0.001);
-    let vertices: Vec<Vec3> = model
-        .positions
-        .iter()
-        .map(|p| {
-            vec3(
-                ((p[0] as f64 - center[0]) / extent * 2.0) as f32,
-                ((p[1] as f64 - center[1]) / extent * 2.0) as f32,
-                ((p[2] as f64 - center[2]) / extent * 2.0) as f32,
-            )
-        })
-        .collect();
     let texture = if let Some(path) = texture_path {
         match load_texture(path).await {
             Ok(texture) => Some(texture),
@@ -101,10 +120,15 @@ async fn main() {
     } else {
         None
     };
-    let solid_meshes = build_meshes(&model, &vertices, None);
-    let textured_meshes = texture
-        .as_ref()
-        .map(|texture| build_meshes(&model, &vertices, Some(texture)));
+    let mut current_path = path.map(PathBuf::from);
+    let mut scene = match Scene::load(current_path.as_deref(), texture.as_ref()) {
+        Ok(scene) => scene,
+        Err(error) => {
+            eprintln!("Cannot load model: {error}");
+            return;
+        }
+    };
+    let mut import_error = String::new();
     let mut yaw = 0.7_f32;
     let mut pitch = 0.3_f32;
     let mut distance = 4.0_f32;
@@ -115,6 +139,31 @@ async fn main() {
     loop {
         if is_key_pressed(KeyCode::Escape) {
             break;
+        }
+        let requested_path = get_dropped_files()
+            .into_iter()
+            .find_map(|file| file.path)
+            .or_else(|| {
+                if is_key_pressed(KeyCode::L) {
+                    current_path.clone()
+                } else {
+                    None
+                }
+            });
+        if let Some(path) = requested_path {
+            match Scene::load(Some(&path), texture.as_ref()) {
+                Ok(replacement) => {
+                    scene = replacement;
+                    current_path = Some(path);
+                    import_error.clear();
+                    yaw = 0.7;
+                    pitch = 0.3;
+                    distance = 4.0;
+                }
+                Err(error) => {
+                    import_error = format!("Cannot load {}: {error}", path.display());
+                }
+            }
         }
         if is_key_pressed(KeyCode::Space) {
             rotating = !rotating;
@@ -163,20 +212,20 @@ async fn main() {
             draw_grid(20, 0.25, GRAY, DARKGRAY);
         }
         if wireframe {
-            for triangle in &model.triangles {
+            for triangle in &scene.model.triangles {
                 for edge in 0..3 {
                     draw_line_3d(
-                        vertices[triangle[edge]],
-                        vertices[triangle[(edge + 1) % 3]],
+                        scene.positions[triangle[edge]],
+                        scene.positions[triangle[(edge + 1) % 3]],
                         SKYBLUE,
                     );
                 }
             }
         } else {
             let meshes = if textured {
-                textured_meshes.as_ref().unwrap_or(&solid_meshes)
+                scene.textured.as_ref().unwrap_or(&scene.solid)
             } else {
-                &solid_meshes
+                &scene.solid
             };
             for mesh in meshes {
                 draw_mesh(mesh);
@@ -204,8 +253,8 @@ async fn main() {
         draw_text(
             format!(
                 "{} vertices / {} triangles",
-                vertices.len(),
-                model.triangles.len()
+                scene.positions.len(),
+                scene.model.triangles.len()
             ),
             20.0,
             82.0,
@@ -213,12 +262,16 @@ async fn main() {
             SKYBLUE,
         );
         draw_text(
-            "W: wireframe | T: texture | G: grid",
+            "W: wireframe | T: texture | G: grid | L: reload | Drop an OBJ to open",
             20.0,
             106.0,
             20.0,
             LIGHTGRAY,
         );
+        if !import_error.is_empty() {
+            let message: String = import_error.chars().take(120).collect();
+            draw_text(&message, 20.0, 132.0, 18.0, ORANGE);
+        }
         next_frame().await;
     }
 }
@@ -226,6 +279,24 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn frames_extreme_finite_coordinates_without_overflow() {
+        let scene = Scene::from_obj("v -3e38 0 0\nv 3e38 0 0\nv 0 3e38 0\nf 1 2 3", None).unwrap();
+        assert_eq!(scene.positions[0].x, -1.0);
+        assert_eq!(scene.positions[1].x, 1.0);
+        assert!(scene.positions.iter().all(|p| p.is_finite()));
+    }
+
+    #[test]
+    fn original_sample_loads_and_malformed_replacements_are_rejected() {
+        let scene = Scene::load(None, None).unwrap();
+        assert_eq!(scene.model.triangles.len(), 8);
+        assert_eq!(scene.model.texcoords.len(), 3);
+        assert!(Scene::from_obj("v NaN 0 0", None).is_err());
+        // Constructing a replacement does not mutate the currently loaded scene.
+        assert_eq!(scene.model.triangles.len(), 8);
+    }
 
     #[test]
     fn mesh_batches_preserve_triangles_and_stay_within_draw_limits() {

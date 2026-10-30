@@ -112,6 +112,11 @@ mod tests {
         fs::create_dir_all(root.join("nested")).unwrap();
         fs::write(root.join("opaque-name"), b"CPK ").unwrap();
         fs::write(root.join("nested/unknown"), b"other").unwrap();
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&root, root.join("nested/loop")).unwrap();
+            std::os::unix::fs::symlink(root.join("opaque-name"), root.join("linked-file")).unwrap();
+        }
         let result = catalog(&root, 10).unwrap();
         assert_eq!(result.entries.len(), 2);
         assert!(!result.limit_reached);
