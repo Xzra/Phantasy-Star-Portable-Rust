@@ -1,0 +1,43 @@
+Phantasy Star Portable Rust - Windows x64 model viewer preview
+
+START
+Double-click model-viewer.exe. The original sample crystal is embedded; no game
+installation, Rust toolchain, or separate sample files are needed to view it.
+A working graphics driver with OpenGL support is required.
+
+CONTROLS
+Arrow keys: orbit camera
+Mouse wheel: zoom
+Space: toggle rotation
+W: toggle wireframe
+T: toggle an explicitly supplied texture
+G: toggle ground grid
+R: reset camera
+L: reload current OBJ file
+Escape: quit
+Drop an OBJ file onto the window to open it.
+
+OPEN YOUR OWN MODEL
+In PowerShell, from the extracted ZIP directory:
+  .\model-viewer.exe "C:\path\to\model.obj"
+  .\model-viewer.exe "C:\path\to\model.obj" --texture "C:\path\to\diffuse.png"
+
+Companion MTL files supply diffuse RGB colors. Materials and textures must be
+available locally. Automatic MTL texture maps and animation are not supported.
+The optional texture above applies one image to the whole model.
+
+HEADLESS TOOLS (included in ZIP)
+  .\psp-client.exe inspect assets\models\training-crystal.obj
+  .\psp-client.exe demo
+  .\psp-client.exe catalog "C:\path\to\pso2_bin\data" 100000
+  .\psp-client.exe asset-search "C:\path\to\itemData.json" "Frontier Wing" --classic
+  .\psp-client.exe ice-list "C:\path\to\plaintext-v4.ice"
+
+SCOPE
+This is an early model-viewer preview, not a playable Phantasy Star game.
+The viewer opens OBJ files. Native PSO2/Nova models, animation, encrypted ICE,
+and compressed ICE are not decoded. The small solo demo is a command-line
+simulation only. No proprietary game assets are included.
+
+Source and development notes:
+https://github.com/Xzra/Phantasy-Star-Portable-Rust/tree/feat/initial-framework

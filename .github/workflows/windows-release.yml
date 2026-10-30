@@ -1,0 +1,44 @@
+name: Windows preview build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      # Bundle the MSVC runtime into the binaries for a standalone preview.
+      RUSTFLAGS: -C target-feature=+crt-static
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test workspace on Windows
+        run: cargo test --workspace --all-features --locked
+      - name: Build Windows executables
+        run: cargo build --release --locked --features viewer --bin model-viewer --bin psp-client
+      - name: Package preview
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force staging, dist | Out-Null
+          Copy-Item target/release/model-viewer.exe staging/model-viewer.exe
+          Copy-Item target/release/psp-client.exe staging/psp-client.exe
+          Copy-Item assets staging/assets -Recurse
+          Copy-Item docs/windows-preview.txt staging/README.txt
+          Copy-Item target/release/model-viewer.exe dist/model-viewer.exe
+          Compress-Archive -Path staging/* -DestinationPath dist/phantasy-star-rust-windows-x64.zip
+          $checksums = Get-ChildItem dist -File | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          $checksums | Set-Content dist/SHA256SUMS.txt -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: dist/*
+          if-no-files-found: error

@@ -6,6 +6,12 @@ is in a good state.
 
 ## Start here: model viewer
 
+Windows preview executables are distributed through
+[GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases).
+Run `model-viewer.exe` for the embedded sample, or extract the ZIP for the viewer,
+command-line tools, sample assets, and instructions. These previews open OBJ
+models; native PSO2/Nova model decoding is still in development.
+
 Install stable Rust with Cargo, then run from the repository root:
 
 ```sh
