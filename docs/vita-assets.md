@@ -49,3 +49,16 @@ and arbitrary game formats are not supported.
 
 Next, compare the upcoming PC installation with this layout and locate readable
 model payloads. The original OBJ sample keeps viewer work testable meanwhile.
+
+## When the PC installation is available
+
+```sh
+cargo run --bin psp-client -- catalog /path/to/pso2_bin/data 100000
+```
+
+The Rust catalog scans regular files and inspects their first 32 bytes, including
+files with opaque names and no extension. It reports ICE versions, CPK signatures,
+unknown-file counts, and whether the scan reached its file limit. It does not
+follow symlinks or alter the installation. Unknown signatures are not proof of
+encryption or corruption. Start by locating readable ICE containers and validating
+their versions before choosing a decoder.

@@ -1,6 +1,8 @@
 //! Small OBJ position/face importer. Proprietary game formats belong in adapters.
 use std::fmt;
 
+pub mod catalog;
+
 #[derive(Debug, PartialEq)]
 pub struct Model {
     pub positions: Vec<[f32; 3]>,

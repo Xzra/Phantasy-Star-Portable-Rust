@@ -29,10 +29,15 @@ Headless tools work without graphics dependencies enabled:
 ```sh
 cargo run --bin psp-client -- inspect assets/models/training-crystal.obj
 cargo run --bin psp-client -- demo
+cargo run --bin psp-client -- catalog /path/to/pso2_bin/data 100000
 ```
 
 The demo exercises a small lobby → training quest → combat → level-up → lobby
 loop. It is groundwork for later milestones, not a playable graphical lobby.
+The read-only catalog recognizes ICE/CPK signatures without relying on filenames,
+reads only 32 bytes per file, skips symlinks, and reports partial scans when the
+file limit is reached (10,000 by default). Unknown files remain unidentified;
+this command does not extract or decode game data.
 
 ## Framework
 

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from inspect_cpk import MAX_TABLE, Source, inspect, utf_rows
+from inspect_cpk import MAX_TABLE, Source, inspect, probe_entries, utf_rows
 
 
 def table(columns, values):
@@ -74,6 +74,23 @@ class MetadataTests(unittest.TestCase):
                     source.read(offset, size)
             with self.assertRaisesRegex(ValueError, "plaintext"):
                 inspect(source)
+
+    def test_probes_use_toc_base_and_preserve_size_mismatches(self):
+        prefix = bytearray(32)
+        prefix[:4] = b"ICE\0"
+        struct.pack_into("<II", prefix, 8, 4, 128)
+        struct.pack_into("<I", prefix, 28, 128)
+        report = {"header": {"ContentOffset": 512, "TocOffset": 256},
+                  "entries": [{"FileOffset": 256, "FileSize": 128, "FileName": "test.ice"}]}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sample.cpk"
+            path.write_bytes(b"\0" * 512 + prefix)
+            samples = probe_entries(Source(path), report, 1)
+            self.assertEqual(samples[0]["absolute_offset"], 512)
+            self.assertTrue(samples[0]["is_ice"])
+            self.assertTrue(samples[0]["size_matches_toc"])
+            report["entries"][0]["FileSize"] = 256
+            self.assertFalse(probe_entries(Source(path), report, 1)[0]["size_matches_toc"])
 
 
 if __name__ == "__main__":
