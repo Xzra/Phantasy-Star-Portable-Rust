@@ -21,7 +21,7 @@ jobs:
       - name: Test workspace on Windows
         run: cargo test --workspace --all-features --locked --target x86_64-pc-windows-msvc
       - name: Build Windows executables
-        run: cargo build --release --locked --target x86_64-pc-windows-msvc --features viewer --bin model-viewer --bin psp-client
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc --features viewer --bin model-viewer --bin psp-client --bin phantasy-star
       - name: Validate Dagan setup and native import
         shell: pwsh
         env:
@@ -31,18 +31,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Dagan setup helper failed" }
           & target/x86_64-pc-windows-msvc/release/psp-client.exe inspect tools/local/dagan.ice
           if ($LASTEXITCODE -ne 0) { throw "Dagan model import failed" }
+          cmd /c tools\Play-Dagan.cmd
+          if ($LASTEXITCODE -ne 0) { throw "Dagan game setup helper failed" }
       - name: Package preview
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force staging, dist | Out-Null
           Copy-Item target/x86_64-pc-windows-msvc/release/model-viewer.exe staging/model-viewer.exe
           Copy-Item target/x86_64-pc-windows-msvc/release/psp-client.exe staging/psp-client.exe
+          Copy-Item target/x86_64-pc-windows-msvc/release/phantasy-star.exe staging/phantasy-star.exe
           Copy-Item assets staging/assets -Recurse
           Copy-Item docs/windows-preview.txt staging/README.txt
           Copy-Item tools/Load-Dagan.cmd staging/Load-Dagan.cmd
+          Copy-Item tools/Play-Dagan.cmd staging/Play-Dagan.cmd
           Copy-Item THIRD_PARTY_NOTICES.md staging/THIRD_PARTY_NOTICES.md
           Copy-Item THIRD_PARTY_NOTICES.md dist/THIRD_PARTY_NOTICES.md
           Copy-Item target/x86_64-pc-windows-msvc/release/model-viewer.exe dist/model-viewer.exe
+          Copy-Item target/x86_64-pc-windows-msvc/release/phantasy-star.exe dist/phantasy-star.exe
           Compress-Archive -Path staging/* -DestinationPath dist/phantasy-star-rust-windows-x64.zip
           $checksums = Get-ChildItem dist -File | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()

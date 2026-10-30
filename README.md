@@ -4,7 +4,29 @@ A ground-up Rust game inspired by Phantasy Star Online, using PSO2 and Nova as
 references. Start with solo play, then introduce a hostable server once the game
 is in a good state.
 
-## Start here: model viewer
+## Start here: playable solo prototype
+
+Download `phantasy-star.exe` from [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases)
+and open it to enter the original orbital lobby. No game installation is required.
+Walk to the blue mission terminal and press E to enter Hunter training. Defeat the
+projection, gain a level, then use the return pad. The ZIP also includes
+`Play-Dagan.cmd` to fetch the verified Classic Dagan model for the training target.
+
+```sh
+cargo run --features viewer --bin phantasy-star
+cargo run --features viewer --bin phantasy-star -- /path/to/dagan.ice
+```
+
+WASD moves relative to the camera, Shift sprints, E interacts, and Space or left
+mouse attacks. Hold right mouse and drag, or use the arrow keys, to orbit; scroll
+to zoom. Escape opens the pause menu, including New session and Quit.
+
+This is a small playable foundation: collision, a chase camera, a stationary
+training target with simple counter damage, XP, and one quest. Progress lasts
+only for the current session. Enemy AI, skeletal animation, equipment, saving,
+and multiplayer remain future work. See [solo gameplay](docs/solo-game.md).
+
+## Model viewer
 
 Windows preview executables are distributed through
 [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases).
@@ -23,7 +45,7 @@ cargo run --features viewer --bin model-viewer -- /path/to/model.obj --texture /
 cargo run --features viewer --bin model-viewer -- /path/to/classic-model.ice
 ```
 
-The first milestone is a desktop model viewer. It includes an original
+The desktop model viewer includes an original
 crystal model, automatic framing, arrow-key orbit, mouse-wheel zoom, Space to
 toggle rotation, R to reset, and Escape to quit. W toggles wireframe, T toggles
 an explicitly supplied texture, and G toggles the grid. Solid mode uses computed
@@ -52,7 +74,7 @@ cargo run --bin psp-client -- ice-list /path/to/plaintext-v4.ice
 ```
 
 The demo exercises a small lobby → training quest → combat → level-up → lobby
-loop. It is groundwork for later milestones, not a playable graphical lobby.
+loop without a display. The separate `phantasy-star` binary provides graphical play.
 The read-only catalog recognizes ICE/CPK signatures without relying on filenames,
 reads only 32 bytes per file, skips symlinks, and reports partial scans when the
 file limit is reached (10,000 by default). Unknown files remain unidentified;
@@ -68,8 +90,8 @@ does not decode the entries' model or texture formats.
 | Component | Responsibility |
 | --- | --- |
 | `crates/assets` | Validated OBJ geometry/UV import, triangulation, bounds |
-| `crates/client` | Desktop viewer and command-line entry point |
-| `crates/game-core` | Rendering-independent solo session, commands, events |
+| `crates/client` | Solo game, shared model rendering, viewer and command-line tools |
+| `crates/game-core` | Fixed-step world, movement/collision, solo session, commands/events |
 | `tools/inspect_cpk.py` | Read-only local/FTP CPK metadata inspection (Python 3) |
 | `assets/models` | Original distributable sample assets |
 
@@ -80,10 +102,10 @@ server can own the session without depending on a graphics library.
 
 1. **Model viewer — in progress:** OBJ solid/wireframe modes, one-texture rendering,
    and camera controls exist. Next: game-asset adapters, materials, skeletons/animation.
-2. **Working lobby:** player movement, camera, collision, quest interaction.
+2. **Working lobby — initial playable version:** movement, chase camera, collision, mission terminal.
 3. **Hunter class:** character state, weapon equip, movement/attack animations.
-4. **Basic combat and leveling:** real-time hit detection, damage, enemies, XP.
-5. **Basic quest:** load a field, complete an objective, receive rewards, return.
+4. **Basic combat and leveling — foundation:** range/facing checks, attack cooldowns, damage and XP; next: mobile enemies and richer combat.
+5. **Basic quest — initial training loop:** enter a field, defeat a projection, receive rewards, return.
 6. **Hostable server:** move established rules behind authoritative commands.
 
 See [architecture](docs/architecture.md) and [Vita research](docs/vita-assets.md).

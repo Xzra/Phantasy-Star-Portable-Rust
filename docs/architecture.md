@@ -1,11 +1,11 @@
 # Architecture
 
-The viewer is the active milestone from the README; the small solo simulation
-establishes a boundary that later lobby/combat work can use.
+The graphical solo prototype and model viewer share an import/rendering layer.
+The solo world owns its rules independently of the window and GPU.
 
 ```text
 model file -> psp-assets -> geometry -> psp-client viewer
-player input -> command -> psp-core session -> events -> presentation
+player input -> fixed-step psp-core world -> session commands -> events -> presentation
 ```
 
 `psp-assets` returns positions and triangle indices without GPU types. Viewer
@@ -17,13 +17,19 @@ importer, not a complete OBJ implementation.
 
 `psp-core` owns state transitions. Invalid commands preserve the session. Training
 rewards are issued once; the initial quest cannot be replayed. Damage and XP are
-placeholders. There is no persistence, real-time simulation, multiplayer, or death
-loop yet. Command/event types are internal APIs, not a network protocol.
+placeholders. `world` adds a fixed 60 Hz simulation with camera-independent X/Z
+movement, normalized input, sprinting, circle/AABB collision, interaction proximity,
+attack range/facing checks, and cooldowns. The client caps catch-up to six ticks
+and smooths presentation separately. Core tests verify the complete quest loop
+and reject invalid movement inputs. There is no persistence, enemy AI, multiplayer,
+or death loop yet. Command/event types are internal APIs, not a network protocol.
 
 `psp-client` separates headless and graphical entry points. Rendering is optional
 so import and rule work can run without a display. Macroquad provides rendering
-and input for the initial viewer. Reassess engine needs when textured animation
-and lobby collision are concrete.
+and input for the viewer and solo game. `scene` owns shared model import,
+normalization, mesh batching and optional textures. `game` draws the original
+lobby/avatar, translates camera-relative input into world movement, and presents
+world events. It never mutates health, rewards or collision state directly.
 
 Solid rendering computes directional intensity from authored normals, with flat
 face normals as a fallback for missing or zero-length values. A supplied
@@ -49,5 +55,5 @@ MTL properties are ignored; an explicit texture image still applies globally.
 4. Add skeleton/animation import after validating an actual model format.
 5. Add an asset browser and per-file import errors.
 
-Introduce stable entity IDs, fixed simulation ticks, serialization/versioning,
+Introduce stable entity IDs, serialization/versioning,
 and persistence as solo gameplay develops, before designing a hostable server.
