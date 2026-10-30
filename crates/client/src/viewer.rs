@@ -73,14 +73,27 @@ fn build_meshes(model: &Model, positions: &[Vec3], texture: Option<&Texture2D>) 
             for (local, triangle) in triangles.iter().enumerate() {
                 let [a, b, c] = triangle.map(|index| positions[index]);
                 let normal = (b - a).cross(c - a).normalize_or_zero();
-                let intensity = 0.25 + 0.75 * normal.dot(light).max(0.0);
-                let color = if texture.is_some() {
-                    Color::new(intensity, intensity, intensity, 1.0)
-                } else {
-                    Color::new(0.35 * intensity, 0.75 * intensity, intensity, 1.0)
-                };
                 let uvs = model.triangle_uvs[chunk * TRIANGLES_PER_MESH + local];
+                let normals = model.triangle_normals[chunk * TRIANGLES_PER_MESH + local];
                 for corner in 0..3 {
+                    let shading_normal = normals[corner]
+                        .map(|index| {
+                            let value = Vec3::from_array(model.normals[index]);
+                            // Scale first: normalizing a large finite normal directly can overflow.
+                            let scale = value.abs().max_element();
+                            if scale > 0.0 {
+                                (value / scale).normalize_or_zero()
+                            } else {
+                                normal
+                            }
+                        })
+                        .unwrap_or(normal);
+                    let intensity = 0.25 + 0.75 * shading_normal.dot(light).max(0.0);
+                    let color = if texture.is_some() {
+                        Color::new(intensity, intensity, intensity, 1.0)
+                    } else {
+                        Color::new(0.35 * intensity, 0.75 * intensity, intensity, 1.0)
+                    };
                     let uv = uvs[corner]
                         .map(|index| model.texcoords[index])
                         .unwrap_or([0.0; 2]);
@@ -236,7 +249,7 @@ async fn main() {
             if wireframe {
                 "MODEL VIEWER / wireframe"
             } else {
-                "MODEL VIEWER / flat shaded"
+                "MODEL VIEWER / shaded"
             },
             20.0,
             30.0,
@@ -306,6 +319,7 @@ mod tests {
         let mut large = model;
         large.triangles = vec![[0, 1, 2]; TRIANGLES_PER_MESH + 1];
         large.triangle_uvs = vec![[Some(0); 3]; TRIANGLES_PER_MESH + 1];
+        large.triangle_normals = vec![[None; 3]; TRIANGLES_PER_MESH + 1];
         let meshes = build_meshes(&large, &positions, None);
         assert_eq!(meshes.len(), 2);
         assert_eq!(meshes[0].indices.len(), TRIANGLES_PER_MESH * 3);
@@ -325,5 +339,16 @@ mod tests {
         let meshes = build_meshes(&model, &[Vec3::ZERO], None);
         assert_eq!(meshes[0].vertices.len(), 3);
         assert!(meshes[0].vertices.iter().all(|v| v.position.is_finite()));
+    }
+
+    #[test]
+    fn authored_normals_shade_corners_and_zero_normals_fall_back() {
+        let model =
+            Model::from_obj("v 0 0 0\nv 1 0 0\nv 0 1 0\nvn 0 0 -3e38\nvn 0 0 0\nf 1//1 2//2 3")
+                .unwrap();
+        let meshes = build_meshes(&model, &[Vec3::ZERO, Vec3::X, Vec3::Y], None);
+        let vertices = &meshes[0].vertices;
+        assert!(vertices[0].color[2] < vertices[1].color[2]);
+        assert_eq!(vertices[1].color, vertices[2].color);
     }
 }

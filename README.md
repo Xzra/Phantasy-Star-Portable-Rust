@@ -18,11 +18,13 @@ The first milestone is a desktop model viewer. It includes an original
 crystal model, automatic framing, arrow-key orbit, mouse-wheel zoom, Space to
 toggle rotation, R to reset, and Escape to quit. W toggles wireframe, T toggles
 an explicitly supplied texture, and G toggles the grid. Solid mode uses computed
-flat face lighting. A working graphics/display
+directional lighting from authored normals, falling back to flat face normals.
+A working graphics/display
 environment is required. OBJ polygon faces are fan-triangulated; use convex faces
 or pre-triangulated models. OBJ UV seams and relative UV indices are supported;
-the texture option applies one image to the whole model. Material files, authored
-normals, animation, and proprietary game models are not supported yet.
+the texture option applies one image to the whole model. Hard edges and separate
+normal indices are preserved. Material files, animation, and proprietary game
+models are not supported yet.
 Drop another OBJ onto the window to open it, or press L to reload the current
 file after editing it. Import errors appear in the window and preserve the
 previous model. The explicitly supplied texture stays selected across model loads.
