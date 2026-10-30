@@ -37,6 +37,7 @@ Headless tools work without graphics dependencies enabled:
 cargo run --bin psp-client -- inspect assets/models/training-crystal.obj
 cargo run --bin psp-client -- demo
 cargo run --bin psp-client -- catalog /path/to/pso2_bin/data 100000
+cargo run --bin psp-client -- asset-search /path/to/itemData.json "Frontier Wing" --classic --limit 5
 ```
 
 The demo exercises a small lobby → training quest → combat → level-up → lobby
@@ -45,6 +46,8 @@ The read-only catalog recognizes ICE/CPK signatures without relying on filenames
 reads only 32 bytes per file, skips symlinks, and reports partial scans when the
 file limit is reached (10,000 by default). Unknown files remain unidentified;
 this command does not extract or decode game data.
+Named discovery reads an external PSO2NGS File Downloader item index and can check
+matching archives against a local installation. See [asset references](docs/asset-references.md).
 
 ## Framework
 

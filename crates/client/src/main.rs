@@ -1,6 +1,8 @@
 use psp_core::{Command, QuestState, Session};
 use std::{env, error::Error, fs};
 
+mod references;
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("Error: {error}");
@@ -11,6 +13,7 @@ fn main() {
 fn run() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
     match args.as_slice() {
+        [command, index, query, options @ ..] if command == "asset-search" => references::search(index, query, options)?,
         [command] if command == "demo" => {
             let mut session = Session::default();
             println!("Hunter enters the lobby: {:?}", session.hunter());
@@ -27,8 +30,8 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
         [command, path] if command == "catalog" => print_catalog(path, 10000)?,
         [command, path, limit] if command == "catalog" => print_catalog(path, limit.parse()?)?,
-        [] => println!("Usage: psp-client demo | inspect <model.obj> | catalog <directory> [file-limit]\nGraphical viewer: cargo run --features viewer --bin model-viewer -- [model.obj]"),
-        _ => return Err("expected demo, inspect <model.obj>, or catalog <directory> [file-limit]".into()),
+        [] => println!("Usage: psp-client demo | inspect <model.obj> | catalog <directory> [file-limit]\n  asset-search <itemData.json> <query> [--root data-directory] [--limit N] [--classic | --ngs]\nGraphical viewer: cargo run --features viewer --bin model-viewer -- [model.obj]"),
+        _ => return Err("unknown command or missing arguments; run psp-client without arguments for usage".into()),
     }
     Ok(())
 }
