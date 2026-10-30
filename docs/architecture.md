@@ -52,8 +52,18 @@ MTL properties are ignored; an explicit texture image still applies globally.
 2. Add more format variants with original/synthetic fixtures. Keep proprietary
    archives and extracted payloads in ignored local storage.
 3. Extend material colors with texture maps and transparency as real assets require.
-4. Add skeleton/animation import after validating an actual model format.
+4. Extend the initial Classic AQN/AQM rig support with animation events and broader variants.
 5. Add an asset browser and per-file import errors.
 
 Introduce stable entity IDs, serialization/versioning,
 and persistence as solo gameplay develops, before designing a hostable server.
+
+## Animation presentation
+
+`psp-assets::rig` owns validated skeletons, local transforms, clip sampling and
+source-space skinning. `Scene` applies a separate presentation transform after
+skinning and updates existing mesh vertices and lighting without changing UVs.
+The original Hunter and imported Dagan use this same path. Hunter locomotion
+blends from simulation movement, and attack/reaction clips follow core events.
+Rendering never moves collision or issues rewards. Details and format limits are
+in [animation](animation.md).

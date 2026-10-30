@@ -15,8 +15,8 @@ are procedural; no PSO2 installation or downloaded assets are required.
 WASD moves relative to the camera; Shift sprints. Right-mouse dragging or the
 left/right arrow keys orbit the camera, and the wheel zooms. Movement collides
 with walls, props, the terminal and the active target. The camera shortens its
-distance around solid props. The robot has simple procedural walking and attack
-poses, rather than imported skeletal animation.
+distance around solid props. The original Hunter now has a 17-bone rig with idle, walk, run and slash keyframes.
+F2 toggles bones. See [animation](animation.md) for the shared skinning path.
 
 ## Optional PSO2 projection
 
@@ -27,7 +27,9 @@ path. No proprietary assets are bundled. See [Classic models](classic-models.md)
 You can also pass a supported local model as the first argument. With no argument,
 the game checks `local/dagan.ice` and `local/models/dagan/dagan.ice` relative to its
 working directory, then uses the original drone if no model can be loaded.
-Imported models are static, grounded and normalized for the training target.
+Imported models are grounded and normalized for the training target. A companion
+`dagan-motion.ice` beside the selected model enables native idle, damage,
+counterattack and death clips; the Windows helpers prepare both archives.
 
 ## Validation
 
@@ -48,6 +50,5 @@ to capture just the initial scene after three frames. The output folder must exi
 ## Next steps
 
 The current quest is a single stationary training encounter. There are no saves,
-inventory/equipment, death/retry flow, enemy navigation, multiplayer or imported
-animation. Next work should establish moving enemies and telegraphed attacks,
+inventory/equipment, death/retry flow, enemy navigation, multiplayer or imported player characters. Next work should establish moving enemies and telegraphed attacks,
 then expand Hunter combat, reusable quests and persistence before networking.

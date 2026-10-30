@@ -50,8 +50,10 @@ The model-format layout was checked against
 No source from that library is vendored. ICE key derivation is adapted from the
 MIT-licensed ages-ice-archive reader; its notice is in `THIRD_PARTY_NOTICES.md`.
 
-This is a static geometry preview. Skeleton transforms, animation, complete
-material/texture assignment, alpha blending, game shaders, NGS/Nova geometry,
+Classic AQN skeletons and ordinary AQM skeletal motion are now supported for
+rigged models inside ICE archives. See [rigging and animation](animation.md) for
+validated Dagan clips, controls, limits and the separate motion archive.
+Complete material/texture assignment, alpha blending, game shaders, NGS/Nova geometry,
 half/packed vertex formats, Oodle, and other ICE versions remain unsupported.
 Tests contain only original synthetic geometry and archive data. Real-model
 validation files and captured frames stay under ignored `local/`.

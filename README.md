@@ -23,8 +23,11 @@ to zoom. Escape opens the pause menu, including New session and Quit.
 
 This is a small playable foundation: collision, a chase camera, a stationary
 training target with simple counter damage, XP, and one quest. Progress lasts
-only for the current session. Enemy AI, skeletal animation, equipment, saving,
-and multiplayer remain future work. See [solo gameplay](docs/solo-game.md).
+only for the current session. Enemy AI, equipment, saving,
+and multiplayer remain future work. The original Hunter has a 17-bone rig with
+blended idle/walk/run/slash clips. The optional Dagan uses its native skeleton and
+AQM idle, damage, counterattack and death motions. See [solo gameplay](docs/solo-game.md)
+and [rigging and animation](docs/animation.md).
 
 ## Model viewer
 
@@ -56,9 +59,10 @@ or pre-triangulated models. OBJ UV seams and relative UV indices are supported;
 the texture option applies one image to the whole model. Hard edges and separate
 normal indices are preserved. Companion MTL files supply diffuse RGB (`Kd`)
 colors per material. Missing or malformed MTL files produce warnings and preserve
-the geometry. Automatic MTL texture maps, transparency, and animation are not
-supported yet. Classic PSO2 Aqua geometry in supported ICE v4 containers can be
-opened directly, including its matching primary diffuse DDS texture.
+the geometry. Automatic MTL texture maps and transparency are not supported yet. Classic PSO2 Aqua geometry in supported ICE v4 containers can be
+opened directly, including its matching primary diffuse DDS texture and companion
+AQN skeleton. Supply `--motions /path/to/motions.ice` for native AQM playback;
+A toggles animation, N cycles clips, and B toggles bones.
 Drop an OBJ, AQP/AQO, or supported ICE onto the window to open it, or press L to reload the current
 file after editing it. Import errors appear in the window and preserve the
 previous model. The explicitly supplied texture stays selected across model loads.
@@ -101,9 +105,9 @@ server can own the session without depending on a graphics library.
 ## Roadmap (original order)
 
 1. **Model viewer — in progress:** OBJ solid/wireframe modes, one-texture rendering,
-   and camera controls exist. Next: game-asset adapters, materials, skeletons/animation.
+   and camera controls exist. Classic rig/animation support is available; next: broader format/material support.
 2. **Working lobby — initial playable version:** movement, chase camera, collision, mission terminal.
-3. **Hunter class:** character state, weapon equip, movement/attack animations.
+3. **Hunter class — initial rig:** original jointed model with idle/walk/run/slash; next: equipment and deeper combat.
 4. **Basic combat and leveling — foundation:** range/facing checks, attack cooldowns, damage and XP; next: mobile enemies and richer combat.
 5. **Basic quest — initial training loop:** enter a field, defeat a projection, receive rewards, return.
 6. **Hostable server:** move established rules behind authoritative commands.

@@ -31,6 +31,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Dagan setup helper failed" }
           & target/x86_64-pc-windows-msvc/release/psp-client.exe inspect tools/local/dagan.ice
           if ($LASTEXITCODE -ne 0) { throw "Dagan model import failed" }
+          & target/x86_64-pc-windows-msvc/release/psp-client.exe motion-list tools/local/dagan.ice tools/local/dagan-motion.ice
+          if ($LASTEXITCODE -ne 0) { throw "Dagan skeletal motion validation failed" }
           cmd /c tools\Play-Dagan.cmd
           if ($LASTEXITCODE -ne 0) { throw "Dagan game setup helper failed" }
       - name: Package preview
