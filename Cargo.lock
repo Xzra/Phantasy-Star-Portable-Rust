@@ -258,6 +258,7 @@ version = "0.1.0"
 name = "psp-client"
 version = "0.1.0"
 dependencies = [
+ "image",
  "macroquad",
  "psp-assets",
  "psp-core",

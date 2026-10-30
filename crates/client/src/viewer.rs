@@ -6,6 +6,16 @@ use std::path::{Path, PathBuf};
 // Stay below Macroquad's default per-draw vertex/index capacities and u16 limits.
 const TRIANGLES_PER_MESH: usize = 1500;
 
+fn capture_frame(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let frame = get_screen_data();
+    let mut image =
+        image::RgbaImage::from_raw(frame.width.into(), frame.height.into(), frame.bytes)
+            .ok_or("invalid framebuffer dimensions")?;
+    image::imageops::flip_vertical_in_place(&mut image);
+    image.save_with_format(path, image::ImageFormat::Png)?;
+    Ok(())
+}
+
 struct Scene {
     model: Model,
     positions: Vec<Vec3>,
@@ -211,6 +221,9 @@ async fn main() {
     let mut wireframe = false;
     let mut textured = texture.is_some();
     let mut grid = true;
+    // Capture only our own framebuffer; useful for automated graphics smoke checks.
+    let capture_path = std::env::var_os("PSP_VIEWER_CAPTURE").map(PathBuf::from);
+    let mut rendered_frames = 0;
     loop {
         if is_key_pressed(KeyCode::Escape) {
             break;
@@ -284,7 +297,15 @@ async fn main() {
             ..Default::default()
         });
         if grid {
-            draw_grid(20, 0.25, GRAY, DARKGRAY);
+            // Normalized geometry fits in [-1, 1]; keep the ground below it.
+            draw_grid_ex(
+                20,
+                0.25,
+                GRAY,
+                DARKGRAY,
+                vec3(0.0, -1.05, 0.0),
+                Quat::IDENTITY,
+            );
         }
         if wireframe {
             for triangle in &scene.model.triangles {
@@ -354,6 +375,17 @@ async fn main() {
                     .take(120)
                     .collect();
             draw_text(&message, 20.0, 156.0, 18.0, YELLOW);
+        }
+        rendered_frames += 1;
+        if let Some(path) = capture_path.as_ref().filter(|_| rendered_frames >= 3) {
+            match capture_frame(path) {
+                Ok(()) => println!("Captured viewer frame: {}", path.display()),
+                Err(error) => {
+                    eprintln!("Cannot capture frame: {error}");
+                    std::process::exit(1);
+                }
+            }
+            break;
         }
         next_frame().await;
     }

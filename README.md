@@ -80,6 +80,16 @@ cargo clippy --workspace --all-features --all-targets --locked -- -D warnings
 python3 -m unittest discover -s tools -p 'test_*.py'
 ```
 
+For a repeatable graphics smoke check on a machine with a working display:
+
+```sh
+mkdir -p local
+PSP_VIEWER_CAPTURE=local/viewer.png cargo run --features viewer --bin model-viewer
+```
+
+This renders three frames, saves the viewer framebuffer as a PNG, then exits.
+The output directory must already exist; capture failures return a nonzero exit.
+
 Cargo.lock is committed for reproducible application builds. CI checks the optional
 viewer too. The viewer uses Macroquad; the core and OBJ importer have no third-party
 dependencies. Game installations, downloaded archives, extracted assets, and

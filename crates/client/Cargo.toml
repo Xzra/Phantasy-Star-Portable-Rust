@@ -9,10 +9,11 @@ publish.workspace = true
 psp-core.workspace = true
 psp-assets.workspace = true
 macroquad = { version = "0.4.16", default-features = false, optional = true }
+image = { version = "0.24.9", default-features = false, features = ["png"], optional = true }
 
 [features]
 default = []
-viewer = ["dep:macroquad"]
+viewer = ["dep:macroquad", "dep:image"]
 
 [[bin]]
 name = "model-viewer"
