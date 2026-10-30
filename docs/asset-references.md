@@ -51,6 +51,27 @@ rows and returned distinct normal-quality, icon, and sound archive references
 for the first row. This verifies index interoperability, not archive availability
 or successful model import.
 
-The next step is to inspect a readable referenced ICE container, identify its
-model payloads, and implement an adapter with synthetic fixtures. Until then,
-the graphical viewer accepts OBJ exports.
+## Inspect supported ICE containers
+
+```sh
+cargo run --bin psp-client -- ice-list /path/to/archive.ice
+```
+
+The Rust reader currently accepts plaintext, uncompressed ICE v4 only. It checks
+the declared archive size, both groups, entry bounds, filename boundaries, payload
+lengths, and unexpected trailing data. Entry payloads borrow the original input;
+the CLI lists names, sizes, groups, and payload offsets without writing files.
+The CLI limits input to 256 MiB. CRC values are not verified. Encrypted, compressed,
+flagged, and other-version containers are unsupported and return errors.
+
+The layout was cross-checked against
+[rust-ages-ice-archive's reader](https://github.com/HybridEidolon/rust-ages-ice-archive/blob/94b6b2e54776a2c45a54475bd5b75128067e116c/src/read.rs).
+That library is not a dependency; its broader codec and decryption implementation
+was not imported. Tests use synthetic archives.
+
+One 3,856-byte Vita translation entry was read into ignored local storage and
+successfully inspected: group 2, `calor.text`, 3,440 bytes at offset `0x1a0`.
+This establishes working container inspection on that sample, not support for
+encrypted PC archives, NIFL model parsing, or rendering game geometry. Next,
+identify readable model payloads and implement a format adapter. The graphical
+viewer continues to accept OBJ exports.

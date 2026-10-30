@@ -28,9 +28,23 @@ fn run() -> Result<(), Box<dyn Error>> {
             let model = psp_assets::Model::from_obj(&fs::read_to_string(path)?)?;
             println!("{} vertices, {} triangles, bounds {:?}", model.positions.len(), model.triangles.len(), model.bounds());
         }
+        [command, path] if command == "ice-list" => {
+            use std::io::Read;
+            const LIMIT: u64 = 256 * 1024 * 1024;
+            let file = fs::File::open(path)?;
+            if file.metadata()?.len() > LIMIT { return Err("ICE archive exceeds the 256 MiB inspection limit".into()); }
+            let mut data = Vec::new();
+            file.take(LIMIT + 1).read_to_end(&mut data)?;
+            if data.len() as u64 > LIMIT { return Err("ICE archive exceeds the 256 MiB inspection limit".into()); }
+            let archive = psp_assets::ice::IceArchive::parse(&data)?;
+            for entry in &archive.entries {
+                println!("group {}\t{}\t{} bytes\t{}\toffset {:#x}", entry.group, entry.extension, entry.data.len(), entry.name, entry.offset);
+            }
+            println!("{} entries (plaintext, uncompressed ICE v4)", archive.entries.len());
+        }
         [command, path] if command == "catalog" => print_catalog(path, 10000)?,
         [command, path, limit] if command == "catalog" => print_catalog(path, limit.parse()?)?,
-        [] => println!("Usage: psp-client demo | inspect <model.obj> | catalog <directory> [file-limit]\n  asset-search <itemData.json> <query> [--root data-directory] [--limit N] [--classic | --ngs]\nGraphical viewer: cargo run --features viewer --bin model-viewer -- [model.obj]"),
+        [] => println!("Usage: psp-client demo | inspect <model.obj> | ice-list <archive.ice> | catalog <directory> [file-limit]\n  asset-search <itemData.json> <query> [--root data-directory] [--limit N] [--classic | --ngs]\nGraphical viewer: cargo run --features viewer --bin model-viewer -- [model.obj]"),
         _ => return Err("unknown command or missing arguments; run psp-client without arguments for usage".into()),
     }
     Ok(())

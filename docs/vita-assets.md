@@ -15,8 +15,12 @@ offset 6144. The header's file count matches the 66 parsed TOC rows.
 
 Two entry prefix probes (`apc_name_text.ice` and `actor/ac_name_text.ice`) confirm
 `ICE\0` signatures and version 4 at TOC-relative base 2048. The version-4 size
-field at byte 28 matches each entry's TOC file size. These are metadata
-observations only; ICE decompression and payload import are not implemented.
+field at byte 28 matches each entry's TOC file size. A later bounded read of
+`calor/ca_text.ice` (3,856 bytes) confirmed a plaintext, uncompressed v4 container.
+The Rust `ice-list` reader successfully listed `calor.text` in group 2, with a
+3,440-byte payload at offset `0x1a0`. The payload starts with `NIFL`; it is text
+data, not demonstrated geometry. ICE decompression and model import remain
+unimplemented. The sample is kept under ignored `local/`, not in Git.
 
 The base archive's sampled bytes alone do not identify a supported format. This
 may reflect the installation's protection/view through FTP; that is a hypothesis,

@@ -2,6 +2,7 @@
 use std::fmt;
 
 pub mod catalog;
+pub mod ice;
 pub mod materials;
 
 #[derive(Debug, PartialEq)]
