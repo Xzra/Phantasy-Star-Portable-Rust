@@ -199,9 +199,9 @@ impl Model {
                     model.normals.push(rel.floats(offset + normal)?);
                 }
                 if let Some(uv) = set.uv {
-                    let [u,v] = rel.floats(offset + uv)?;
+                    let [u, v] = rel.floats(offset + uv)?;
                     // Aqua uses image-space V; normalize to the OBJ-style V-up convention.
-                    model.texcoords.push([u,1.0-v]);
+                    model.texcoords.push([u, 1.0 - v]);
                 }
             }
             let polygon = strips + strip_index * 24;
