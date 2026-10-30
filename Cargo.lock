@@ -342,6 +342,7 @@ dependencies = [
  "ages-prs",
  "blowfish",
  "crc32fast",
+ "glam",
 ]
 
 [[package]]

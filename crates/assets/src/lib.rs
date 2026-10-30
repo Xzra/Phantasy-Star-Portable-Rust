@@ -7,6 +7,7 @@ pub mod ice;
 pub mod ice_decode;
 pub mod import;
 pub mod materials;
+pub mod rig;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Model {

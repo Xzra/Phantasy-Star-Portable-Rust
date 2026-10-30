@@ -9,3 +9,4 @@ publish.workspace = true
 ages-prs = "0.1"
 blowfish = "0.9"
 crc32fast = "1"
+glam = "0.27"
