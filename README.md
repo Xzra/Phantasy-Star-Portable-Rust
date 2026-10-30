@@ -10,7 +10,9 @@ Windows preview executables are distributed through
 [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases).
 Run `model-viewer.exe` for the embedded sample, or extract the ZIP for the viewer,
 command-line tools, sample assets, and instructions. These previews open OBJ
-models; native PSO2/Nova model decoding is still in development.
+models and limited Classic PSO2 Aqua/ICE geometry. The ZIP includes `Load-Dagan.cmd`
+to fetch a verified Dagan sample from the official patch server and open it locally.
+See [Classic model support](docs/classic-models.md) for scope and limitations.
 
 Install stable Rust with Cargo, then run from the repository root:
 
@@ -18,6 +20,7 @@ Install stable Rust with Cargo, then run from the repository root:
 cargo run --features viewer --bin model-viewer
 cargo run --features viewer --bin model-viewer -- /path/to/model.obj
 cargo run --features viewer --bin model-viewer -- /path/to/model.obj --texture /path/to/diffuse.png
+cargo run --features viewer --bin model-viewer -- /path/to/classic-model.ice
 ```
 
 The first milestone is a desktop model viewer. It includes an original
@@ -31,9 +34,10 @@ or pre-triangulated models. OBJ UV seams and relative UV indices are supported;
 the texture option applies one image to the whole model. Hard edges and separate
 normal indices are preserved. Companion MTL files supply diffuse RGB (`Kd`)
 colors per material. Missing or malformed MTL files produce warnings and preserve
-the geometry. Automatic material texture maps, transparency, animation, and
-proprietary game models are not supported yet.
-Drop another OBJ onto the window to open it, or press L to reload the current
+the geometry. Automatic MTL texture maps, transparency, and animation are not
+supported yet. Classic PSO2 Aqua geometry in supported ICE v4 containers can be
+opened directly, including its matching primary diffuse DDS texture.
+Drop an OBJ, AQP/AQO, or supported ICE onto the window to open it, or press L to reload the current
 file after editing it. Import errors appear in the window and preserve the
 previous model. The explicitly supplied texture stays selected across model loads.
 
@@ -104,8 +108,8 @@ This renders three frames, saves the viewer framebuffer as a PNG, then exits.
 The output directory must already exist; capture failures return a nonzero exit.
 
 Cargo.lock is committed for reproducible application builds. CI checks the optional
-viewer too. The viewer uses Macroquad; the core and OBJ importer have no third-party
-dependencies. Game installations, downloaded archives, extracted assets, and
+viewer too. The viewer uses Macroquad; the core has no third-party dependencies.
+The archive decoder uses Blowfish and PRS libraries. Game installations, downloaded archives, extracted assets, and
 personal reports belong outside the repository or under ignored `local/`.
 No PSO2/Nova game files are included. This is a desktop Rust project, not an
 existing Vita port or compatibility implementation.

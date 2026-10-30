@@ -25,8 +25,15 @@ fn run() -> Result<(), Box<dyn Error>> {
             println!("Back in {:?}: {:?}", session.location(), session.hunter());
         }
         [command, path] if command == "inspect" => {
-            let model = psp_assets::Model::from_obj(&fs::read_to_string(path)?)?;
+            let file=fs::File::open(path)?;
+            use std::io::Read;
+            if file.metadata()?.len()>128*1024*1024 { return Err("model input exceeds 128 MiB".into()); }
+            let mut bytes=Vec::new();
+            file.take(128*1024*1024+1).read_to_end(&mut bytes)?;
+            let imported=psp_assets::import::ImportedModel::parse(&bytes)?;
+            let model=imported.model;
             println!("{} vertices, {} triangles, bounds {:?}", model.positions.len(), model.triangles.len(), model.bounds());
+            if imported.diffuse_texture.is_some() { println!("Archive primary diffuse texture available"); }
         }
         [command, path] if command == "ice-list" => {
             use std::io::Read;

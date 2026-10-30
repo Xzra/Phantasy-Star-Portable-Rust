@@ -41,9 +41,9 @@ MTL properties are ignored; an explicit texture image still applies globally.
 
 ## Next model-viewer work
 
-1. Identify readable source geometry and payload versions from a game installation
-   or user-provided export; filenames alone do not establish compatibility.
-2. Add importer adapters with original/synthetic fixtures. Keep proprietary
+1. Extend the validated Classic PSO2 Aqua importer beyond the initial Dagan sample.
+   Current scope and actual-model evidence are in [Classic models](classic-models.md).
+2. Add more format variants with original/synthetic fixtures. Keep proprietary
    archives and extracted payloads in ignored local storage.
 3. Extend material colors with texture maps and transparency as real assets require.
 4. Add skeleton/animation import after validating an actual model format.

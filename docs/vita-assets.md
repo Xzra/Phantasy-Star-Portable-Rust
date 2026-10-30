@@ -19,8 +19,9 @@ field at byte 28 matches each entry's TOC file size. A later bounded read of
 `calor/ca_text.ice` (3,856 bytes) confirmed a plaintext, uncompressed v4 container.
 The Rust `ice-list` reader successfully listed `calor.text` in group 2, with a
 3,440-byte payload at offset `0x1a0`. The payload starts with `NIFL`; it is text
-data, not demonstrated geometry. ICE decompression and model import remain
-unimplemented. The sample is kept under ignored `local/`, not in Git.
+data, not demonstrated geometry. The sample is kept under ignored `local/`, not
+in Git. Later work added PRS/Blowfish decoding and Classic PC model import, verified
+with a Dagan model; that does not yet establish Vita geometry compatibility.
 
 The base archive's sampled bytes alone do not identify a supported format. This
 may reflect the installation's protection/view through FTP; that is a hypothesis,

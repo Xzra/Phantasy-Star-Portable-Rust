@@ -22,6 +22,15 @@ jobs:
         run: cargo test --workspace --all-features --locked --target x86_64-pc-windows-msvc
       - name: Build Windows executables
         run: cargo build --release --locked --target x86_64-pc-windows-msvc --features viewer --bin model-viewer --bin psp-client
+      - name: Validate Dagan setup and native import
+        shell: pwsh
+        env:
+          PSP_PREPARE_ONLY: '1'
+        run: |
+          cmd /c tools\Load-Dagan.cmd
+          if ($LASTEXITCODE -ne 0) { throw "Dagan setup helper failed" }
+          & target/x86_64-pc-windows-msvc/release/psp-client.exe inspect tools/local/dagan.ice
+          if ($LASTEXITCODE -ne 0) { throw "Dagan model import failed" }
       - name: Package preview
         shell: pwsh
         run: |
@@ -30,6 +39,9 @@ jobs:
           Copy-Item target/x86_64-pc-windows-msvc/release/psp-client.exe staging/psp-client.exe
           Copy-Item assets staging/assets -Recurse
           Copy-Item docs/windows-preview.txt staging/README.txt
+          Copy-Item tools/Load-Dagan.cmd staging/Load-Dagan.cmd
+          Copy-Item THIRD_PARTY_NOTICES.md staging/THIRD_PARTY_NOTICES.md
+          Copy-Item THIRD_PARTY_NOTICES.md dist/THIRD_PARTY_NOTICES.md
           Copy-Item target/x86_64-pc-windows-msvc/release/model-viewer.exe dist/model-viewer.exe
           Compress-Archive -Path staging/* -DestinationPath dist/phantasy-star-rust-windows-x64.zip
           $checksums = Get-ChildItem dist -File | Sort-Object Name | ForEach-Object {

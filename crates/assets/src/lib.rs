@@ -1,11 +1,14 @@
 //! Small OBJ position/face importer. Proprietary game formats belong in adapters.
 use std::fmt;
 
+pub mod aqua;
 pub mod catalog;
 pub mod ice;
+pub mod ice_decode;
+pub mod import;
 pub mod materials;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Model {
     pub positions: Vec<[f32; 3]>,
     pub triangles: Vec<[usize; 3]>,

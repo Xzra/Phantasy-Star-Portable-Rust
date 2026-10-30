@@ -29,13 +29,37 @@ impl Scene {
         path: Option<&Path>,
         texture: Option<&Texture2D>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let source = match path {
-            Some(path) => std::fs::read_to_string(path)?,
-            None => include_str!("../../../assets/models/training-crystal.obj").to_owned(),
+        let imported = match path {
+            Some(path) => {
+                use std::io::Read;
+                let file = std::fs::File::open(path)?;
+                if file.metadata()?.len() > 128 * 1024 * 1024 {
+                    return Err("model input exceeds 128 MiB".into());
+                }
+                let mut bytes = Vec::new();
+                file.take(128 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
+                psp_assets::import::ImportedModel::parse(&bytes)?
+            }
+            None => psp_assets::import::ImportedModel::parse(include_bytes!(
+                "../../../assets/models/training-crystal.obj"
+            ))?,
         };
-        let model = Model::from_obj(&source)?;
+        let model = imported.model;
         let mut materials = MaterialLibrary::default();
         let mut warnings = Vec::new();
+        let automatic_texture = if texture.is_none() {
+            imported.diffuse_texture.as_ref().and_then(|bytes| {
+                match Image::from_file_with_format(bytes, None) {
+                    Ok(image) => Some(Texture2D::from_image(&image)),
+                    Err(error) => {
+                        warnings.push(format!("Cannot decode archive diffuse texture: {error}"));
+                        None
+                    }
+                }
+            })
+        } else {
+            None
+        };
         for filename in &model.material_libraries {
             let material_path = path
                 .and_then(Path::parent)
@@ -61,7 +85,12 @@ impl Scene {
                 ));
             }
         }
-        Ok(Self::from_model(model, texture, &materials, warnings))
+        Ok(Self::from_model(
+            model,
+            texture.or(automatic_texture.as_ref()),
+            &materials,
+            warnings,
+        ))
     }
 
     #[cfg(test)]
@@ -219,7 +248,7 @@ async fn main() {
     let mut distance = 4.0_f32;
     let mut rotating = false;
     let mut wireframe = false;
-    let mut textured = texture.is_some();
+    let mut textured = scene.textured.is_some();
     let mut grid = true;
     // Capture only our own framebuffer; useful for automated graphics smoke checks.
     let capture_path = std::env::var_os("PSP_VIEWER_CAPTURE").map(PathBuf::from);
@@ -241,6 +270,7 @@ async fn main() {
         if let Some(path) = requested_path {
             match Scene::load(Some(&path), texture.as_ref()) {
                 Ok(replacement) => {
+                    textured = replacement.textured.is_some();
                     scene = replacement;
                     current_path = Some(path);
                     import_error.clear();
@@ -358,7 +388,7 @@ async fn main() {
             SKYBLUE,
         );
         draw_text(
-            "W: wireframe | T: texture | G: grid | L: reload | Drop an OBJ to open",
+            "W: wireframe | T: texture | G: grid | L: reload | Drop OBJ, AQP, or ICE",
             20.0,
             106.0,
             20.0,
