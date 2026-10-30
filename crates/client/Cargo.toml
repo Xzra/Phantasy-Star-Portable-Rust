@@ -1,0 +1,20 @@
+[package]
+name = "psp-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+psp-core.workspace = true
+psp-assets.workspace = true
+macroquad = { version = "0.4.16", default-features = false, optional = true }
+
+[features]
+default = []
+viewer = ["dep:macroquad"]
+
+[[bin]]
+name = "model-viewer"
+path = "src/viewer.rs"
+required-features = ["viewer"]

@@ -1,0 +1,14 @@
+[workspace]
+members = ["crates/game-core", "crates/assets", "crates/client"]
+default-members = ["crates/client"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[workspace.dependencies]
+psp-core = { path = "crates/game-core" }
+psp-assets = { path = "crates/assets" }

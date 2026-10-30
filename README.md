@@ -1,11 +1,73 @@
-# Phantasy-Star-Rust
+# Phantasy Star Portable Rust
 
-Using PSO2 and Nova as a base, I aim for a ground up rework of the Phantasy Star Online game in Rust. Starting with solo play and then moving towards a full hostable server once the game is in a good state
+A ground-up Rust game inspired by Phantasy Star Online, using PSO2 and Nova as
+references. Start with solo play, then introduce a hostable server once the game
+is in a good state.
 
-_Timeline_
-Model viewer.
-Working Lobby.
-Hunter Class.
-Basic Combat and Leveling system.
-Basic Quest.
+## Start here: model viewer
+
+Install stable Rust with Cargo, then run from the repository root:
+
+```sh
+cargo run --features viewer --bin model-viewer
+cargo run --features viewer --bin model-viewer -- /path/to/model.obj
+```
+
+The first milestone is a desktop wireframe model viewer. It includes an original
+crystal model, automatic framing, arrow-key orbit, mouse-wheel zoom, Space to
+toggle rotation, R to reset, and Escape to quit. A working graphics/display
+environment is required. OBJ polygon faces are fan-triangulated; use convex faces
+or pre-triangulated models. Materials, textures, animation, and proprietary game
+models are not supported yet.
+
+Headless tools work without graphics dependencies enabled:
+
+```sh
+cargo run --bin psp-client -- inspect assets/models/training-crystal.obj
+cargo run --bin psp-client -- demo
+```
+
+The demo exercises a small lobby → training quest → combat → level-up → lobby
+loop. It is groundwork for later milestones, not a playable graphical lobby.
+
+## Framework
+
+| Component | Responsibility |
+| --- | --- |
+| `crates/assets` | Validated OBJ geometry import, triangulation, bounds |
+| `crates/client` | Desktop viewer and command-line entry point |
+| `crates/game-core` | Rendering-independent solo session, commands, events |
+| `tools/inspect_cpk.py` | Read-only local/FTP CPK metadata inspection (Python 3) |
+| `assets/models` | Original distributable sample assets |
+
+Keep game rules independent of rendering and file formats. A future authoritative
+server can own the session without depending on a graphics library.
+
+## Roadmap (original order)
+
+1. **Model viewer — in progress:** OBJ wireframe and camera controls exist. Next:
+   game-asset access, format adapters, textured meshes, skeletons/animation.
+2. **Working lobby:** player movement, camera, collision, quest interaction.
+3. **Hunter class:** character state, weapon equip, movement/attack animations.
+4. **Basic combat and leveling:** real-time hit detection, damage, enemies, XP.
+5. **Basic quest:** load a field, complete an objective, receive rewards, return.
+6. **Hostable server:** move established rules behind authoritative commands.
+
+See [architecture](docs/architecture.md) and [Vita research](docs/vita-assets.md).
+
+## Development
+
+```sh
+cargo fmt --all -- --check
+cargo test --workspace --all-features --locked
+cargo clippy --workspace --all-features --all-targets --locked -- -D warnings
+python3 -m unittest discover -s tools -p 'test_*.py'
+```
+
+Cargo.lock is committed for reproducible application builds. CI checks the optional
+viewer too. The viewer uses Macroquad; the core and OBJ importer have no third-party
+dependencies. Game installations, downloaded archives, extracted assets, and
+personal reports belong outside the repository or under ignored `local/`.
+No PSO2/Nova game files are included. This is a desktop Rust project, not an
+existing Vita port or compatibility implementation.
 
