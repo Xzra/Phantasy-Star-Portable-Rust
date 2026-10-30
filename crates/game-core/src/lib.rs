@@ -1,5 +1,7 @@
 //! Rendering-independent solo gameplay. A future server can own the same session.
 
+pub mod world;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Location {
     Lobby,
@@ -87,6 +89,9 @@ impl Session {
     }
     pub fn quest(&self) -> QuestState {
         self.quest
+    }
+    pub fn enemy_health(&self) -> u32 {
+        self.enemy_health
     }
 
     /// Invalid commands return an error without changing the session.

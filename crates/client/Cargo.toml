@@ -21,3 +21,8 @@ viewer = ["dep:macroquad", "dep:image"]
 name = "model-viewer"
 path = "src/viewer.rs"
 required-features = ["viewer"]
+
+[[bin]]
+name = "phantasy-star"
+path = "src/game.rs"
+required-features = ["viewer"]
