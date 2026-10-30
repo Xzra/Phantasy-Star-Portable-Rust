@@ -5,15 +5,23 @@ use std::path::PathBuf;
 #[macroquad::main("Phantasy Star Rust — Model Viewer")]
 async fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    let (path, texture_path) = match args.as_slice() {
-        [] => (None, None),
-        [path] if path != "--help" => (Some(path), None),
-        [path, flag, texture] if flag == "--texture" => (Some(path), Some(texture)),
-        _ => {
-            eprintln!("Usage: model-viewer [model.obj [--texture image.png]]");
-            return;
+    let mut path = None;
+    let mut texture_path = None;
+    let mut motion_path = None;
+    let mut selected_clip = None;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--texture" => texture_path = args.next(),
+            "--motions" => motion_path = args.next(),
+            "--clip" => selected_clip = args.next(),
+            value if !value.starts_with('-') && path.is_none() => path = Some(arg),
+            _ => {
+                eprintln!("Usage: model-viewer [model] [--texture image] [--motions archive.ice] [--clip name]");
+                return;
+            }
         }
-    };
+    }
     let texture = if let Some(path) = texture_path {
         match load_texture(path).await {
             Ok(texture) => Some(texture),
@@ -33,6 +41,31 @@ async fn main() {
             return;
         }
     };
+    let mut clips = motion_path
+        .and_then(
+            |path| match scene.load_motions(std::path::Path::new(path)) {
+                Ok(library) => {
+                    for warning in library.warnings {
+                        eprintln!("{warning}");
+                    }
+                    Some(library.clips)
+                }
+                Err(error) => {
+                    eprintln!("Cannot load motions: {error}");
+                    None
+                }
+            },
+        )
+        .unwrap_or_default();
+    let mut clip_index = selected_clip
+        .and_then(|name| clips.iter().position(|c| c.name.contains(name)))
+        .unwrap_or(0);
+    let mut animation_playing = !clips.is_empty();
+    let mut animation_time = 0.0;
+    let mut skeleton_visible = false;
+    let capture_time = std::env::var("PSP_ANIMATION_TIME")
+        .ok()
+        .and_then(|v| v.parse::<f32>().ok());
     let mut import_error = String::new();
     let mut yaw = 0.7_f32;
     let mut pitch = 0.3_f32;
@@ -63,6 +96,13 @@ async fn main() {
                 Ok(replacement) => {
                     textured = replacement.textured.is_some();
                     scene = replacement;
+                    clips = motion_path
+                        .and_then(|p| scene.load_motions(std::path::Path::new(p)).ok())
+                        .map(|l| l.clips)
+                        .unwrap_or_default();
+                    clip_index = 0;
+                    animation_time = 0.0;
+                    animation_playing = !clips.is_empty();
                     current_path = Some(path);
                     import_error.clear();
                     yaw = 0.7;
@@ -91,7 +131,29 @@ async fn main() {
             pitch = 0.3;
             distance = 4.0;
         }
+        if is_key_pressed(KeyCode::A) {
+            animation_playing = !animation_playing;
+        }
+        if is_key_pressed(KeyCode::B) {
+            skeleton_visible = !skeleton_visible;
+        }
+        if is_key_pressed(KeyCode::N) && !clips.is_empty() {
+            clip_index = (clip_index + 1) % clips.len();
+            animation_time = 0.0;
+        }
         let dt = get_frame_time().min(0.1);
+        if animation_playing {
+            animation_time += dt;
+        }
+        let pose = clips.get(clip_index).and_then(|clip| {
+            scene
+                .rig
+                .as_ref()
+                .map(|rig| clip.sample(&rig.skeleton, capture_time.unwrap_or(animation_time), true))
+        });
+        if let Some(pose) = &pose {
+            scene.animate(pose);
+        }
         if rotating || is_key_down(KeyCode::Right) {
             yaw += dt;
         }
@@ -148,6 +210,11 @@ async fn main() {
                 draw_mesh(mesh);
             }
         }
+        if skeleton_visible {
+            if let Some(rig) = &scene.rig {
+                scene.draw_skeleton(pose.as_deref().unwrap_or(&rig.skeleton.bind_pose()));
+            }
+        }
         set_default_camera();
         draw_text(
             if wireframe {
@@ -185,6 +252,29 @@ async fn main() {
             20.0,
             LIGHTGRAY,
         );
+        if let Some(clip) = clips.get(clip_index) {
+            draw_text(
+                format!(
+                    "A: play/pause | N: next | B: bones | {} ({:.2}s)",
+                    clip.name, clip.duration
+                ),
+                20.0,
+                screen_height() - 24.0,
+                18.0,
+                LIME,
+            );
+        } else if let Some(rig) = &scene.rig {
+            draw_text(
+                format!(
+                    "{} bones | B: skeleton | Supply --motions archive.ice for animation",
+                    rig.skeleton.bones.len()
+                ),
+                20.0,
+                screen_height() - 24.0,
+                18.0,
+                LIME,
+            );
+        }
         if !import_error.is_empty() {
             let message: String = import_error.chars().take(120).collect();
             draw_text(&message, 20.0, 132.0, 18.0, ORANGE);

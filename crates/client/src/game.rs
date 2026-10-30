@@ -1,5 +1,9 @@
 use macroquad::prelude::*;
-use psp_client::scene::{capture_frame, Scene};
+use psp_client::{
+    animation::ProjectionMotion,
+    hunter::Hunter,
+    scene::{capture_frame, Scene},
+};
 use psp_core::{
     world::{Input, Position, World, WorldEvent, ENEMY, FIXED_STEP, RETURN_PAD, TERMINAL},
     Event, Location, QuestState,
@@ -227,70 +231,26 @@ fn draw_environment(world: &World) {
     }
 }
 
-fn draw_player(world: &World) {
-    let p = world.position();
-    let facing = world.facing();
-    let forward = vec3(facing.sin(), 0.0, facing.cos());
-    let right = vec3(facing.cos(), 0.0, -facing.sin());
-    let stride = (world.distance_walked() * 5.5).sin() * 0.18;
-    for side in [-1.0, 1.0] {
-        draw_cube(
-            point(p, 0.31) + right * (side * 0.18) + forward * (stride * side),
-            vec3(0.24, 0.6, 0.28),
-            None,
-            INK,
-        );
-        draw_cube(
-            point(p, 1.06) + right * (side * 0.43) - forward * (stride * side),
-            vec3(0.22, 0.65, 0.26),
-            None,
-            Color::new(0.12, 0.38, 0.5, 1.0),
-        );
-    }
-    draw_cube(
-        point(p, 1.02),
-        vec3(0.64, 0.78, 0.4),
-        None,
-        Color::new(0.12, 0.52, 0.65, 1.0),
-    );
-    draw_cube(
-        point(p, 1.18) + forward * 0.23,
-        vec3(0.22, 0.2, 0.1),
-        None,
-        ACCENT,
-    );
-    draw_sphere(
-        point(p, 1.65),
-        0.27,
-        None,
-        Color::new(0.13, 0.18, 0.25, 1.0),
-    );
-    draw_sphere(point(p, 1.68) + forward * 0.23, 0.13, None, YELLOW);
+fn draw_player(world: &World, hunter: &Hunter, bones: bool) {
+    hunter.draw(bones);
     let cooldown = world.attack_cooldown();
     if cooldown > 0.24 {
         let progress = (0.55 - cooldown) / 0.31;
         for i in 0..9 {
-            let angle = facing - 1.2 + progress * 2.4 - i as f32 * 0.045;
+            let angle = world.facing() - 1.2 + progress * 2.4 - i as f32 * 0.045;
             let direction = vec3(angle.sin(), 0.0, angle.cos());
             draw_line_3d(
-                point(p, 1.0) + direction * 0.6,
-                point(p, 1.0) + direction * 2.1,
+                point(world.position(), 1.0) + direction * 0.6,
+                point(world.position(), 1.0) + direction * 2.1,
                 if i < 3 { WHITE } else { ACCENT },
             );
         }
-    } else {
-        draw_cube(
-            point(p, 0.93) + right * 0.53,
-            vec3(0.07, 1.05, 0.07),
-            None,
-            ACCENT,
-        );
     }
 }
 
-fn draw_enemy(world: &World, model: Option<&Scene>, hit_flash: f32) {
+fn draw_enemy(world: &World, model: Option<&Scene>, hit_flash: f32, death_visible: bool) {
     if world.session().location() != Location::TrainingField
-        || world.session().quest() != QuestState::Active
+        || (world.session().quest() != QuestState::Active && !death_visible)
     {
         return;
     }
@@ -409,7 +369,7 @@ fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
         LIGHTGRAY,
     );
     draw_text(
-        "RMB drag / arrows: camera    Wheel: zoom    Esc: pause",
+        "RMB drag / arrows: camera    Wheel: zoom    Esc: pause    F2: bones",
         32.0,
         height - 25.0,
         18.0,
@@ -456,6 +416,8 @@ fn button(label: &str, y: f32) -> bool {
 #[macroquad::main(window_config)]
 async fn main() {
     let mut world = World::default();
+    let mut hunter = Hunter::default();
+    let mut bones = false;
     let candidate = std::env::args().nth(1).or_else(|| {
         ["local/dagan.ice", "local/models/dagan/dagan.ice"]
             .into_iter()
@@ -463,16 +425,48 @@ async fn main() {
             .map(str::to_owned)
     });
     let mut projection =
-        candidate.and_then(|path| match Scene::load(Some(Path::new(&path)), None) {
-            Ok(scene) => Some(scene),
-            Err(error) => {
-                eprintln!("Optional projection unavailable: {error}");
-                None
-            }
-        });
+        candidate
+            .as_ref()
+            .and_then(|path| match Scene::load(Some(Path::new(path)), None) {
+                Ok(scene) => Some(scene),
+                Err(error) => {
+                    eprintln!("Optional projection unavailable: {error}");
+                    None
+                }
+            });
     if let Some(scene) = &mut projection {
         scene.place_on_ground(point(ENEMY, 0.0), 1.3);
     }
+    let motion_path = std::env::args()
+        .nth(2)
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            candidate
+                .as_ref()
+                .map(|path| Path::new(path).with_file_name("dagan-motion.ice"))
+                .filter(|p| p.is_file())
+        });
+    let mut motion = ProjectionMotion::new(
+        projection
+            .as_ref()
+            .and_then(|scene| {
+                motion_path
+                    .as_ref()
+                    .and_then(|path| match scene.load_motions(path) {
+                        Ok(library) => {
+                            for warning in library.warnings {
+                                eprintln!("{warning}");
+                            }
+                            Some(library.clips)
+                        }
+                        Err(error) => {
+                            eprintln!("Optional motions unavailable: {error}");
+                            None
+                        }
+                    })
+            })
+            .unwrap_or_default(),
+    );
     let mut paused = false;
     let mut accumulator = 0.0;
     let mut pending_interaction = false;
@@ -488,6 +482,8 @@ async fn main() {
     let smoke = std::env::var_os("PSP_GAME_SMOKE").is_some();
     let mut captured_lobby = false;
     let mut captured_field = false;
+    let mut captured_hit = false;
+    let mut captured_death = false;
     let mut block_attack = false;
     let mut frames = 0;
     loop {
@@ -546,14 +542,17 @@ async fn main() {
                 for event in events {
                     match event {
                         WorldEvent::Gameplay(Event::QuestStarted) => {
+                            motion.reset();
                             message =
                                 "Hunter training started. Approach the projection.".to_owned();
                             message_time = 4.0;
                         }
                         WorldEvent::Gameplay(Event::EnemyDamaged { .. }) => {
+                            motion.hit(world.time());
                             hit_flash = 0.35;
                         }
                         WorldEvent::Gameplay(Event::QuestCompleted { .. }) => {
+                            motion.die(world.time());
                             message = format!(
                                 "TRAINING CLEAR  /  Level {}  /  +100 XP",
                                 world.session().hunter().level
@@ -581,6 +580,10 @@ async fn main() {
             camera_target =
                 camera_target.lerp(point(world.position(), 1.0), 1.0 - (-12.0 * delta).exp());
         }
+        if is_key_pressed(KeyCode::F2) {
+            bones = !bones;
+        }
+        hunter.update(&world);
         previous_mouse = mouse;
         let offset = vec3(
             yaw.sin() * pitch.cos(),
@@ -597,9 +600,19 @@ async fn main() {
             ..Default::default()
         });
         draw_environment(&world);
-        draw_enemy(&world, projection.as_ref(), hit_flash);
+        if world.session().location() == Location::TrainingField {
+            if let Some(scene) = &mut projection {
+                motion.update(scene, world.time(), bones);
+            }
+        }
+        draw_enemy(
+            &world,
+            projection.as_ref(),
+            hit_flash,
+            motion.death_visible(world.time()),
+        );
         if camera_position.distance(camera_target) > 1.0 {
-            draw_player(&world);
+            draw_player(&world, &hunter, bones);
         }
         set_default_camera();
         hud(&world, &message, message_time, projection.is_some());
@@ -620,6 +633,8 @@ async fn main() {
             }
             if button("New session", y + 90.0) {
                 world = World::default();
+                hunter = Hunter::default();
+                motion.reset();
                 paused = false;
                 accumulator = 0.0;
                 pending_interaction = false;
@@ -643,6 +658,20 @@ async fn main() {
                 let path = Path::new(path);
                 let suffix = if complete {
                     Some("complete")
+                } else if !captured_death
+                    && world.session().location() == Location::TrainingField
+                    && world.session().quest() == QuestState::Complete
+                    && motion.death_visible(world.time())
+                {
+                    captured_death = true;
+                    Some("death")
+                } else if !captured_hit
+                    && world.session().location() == Location::TrainingField
+                    && hit_flash > 0.0
+                    && world.attack_cooldown() < 0.4
+                {
+                    captured_hit = true;
+                    Some("hit")
                 } else if !captured_lobby && frames >= 3 {
                     captured_lobby = true;
                     Some("lobby")

@@ -1,4 +1,5 @@
 use macroquad::prelude::*;
+use psp_assets::rig::{skin_point, Rig, Transform};
 use psp_assets::{materials::MaterialLibrary, Model};
 use std::path::Path;
 const TRIANGLES_PER_MESH: usize = 1500;
@@ -9,6 +10,10 @@ pub struct Scene {
     pub solid: Vec<Mesh>,
     pub textured: Option<Vec<Mesh>>,
     pub warnings: Vec<String>,
+    pub rig: Option<Rig>,
+    presentation: Mat4,
+    solid_colors: Vec<Vec<[u8; 4]>>,
+    textured_colors: Option<Vec<Vec<[u8; 4]>>>,
 }
 
 impl Scene {
@@ -26,6 +31,11 @@ impl Scene {
                 p.z * scale + center.z,
             )
         };
+        self.presentation = Mat4::from_scale_rotation_translation(
+            Vec3::splat(scale),
+            Quat::IDENTITY,
+            center - vec3(0.0, minimum * scale, 0.0),
+        ) * self.presentation;
         for position in &mut self.positions {
             *position = transform(*position);
         }
@@ -71,7 +81,7 @@ impl Scene {
         };
         let model = imported.model;
         let mut materials = MaterialLibrary::default();
-        let mut warnings = Vec::new();
+        let mut warnings = imported.warnings;
         let automatic_texture = if texture.is_none() {
             imported.diffuse_texture.as_ref().and_then(|bytes| {
                 match Image::from_file_with_format(bytes, None) {
@@ -110,12 +120,14 @@ impl Scene {
                 ));
             }
         }
-        Ok(Self::from_model(
+        let mut scene = Self::from_model(
             model,
             texture.or(automatic_texture.as_ref()),
             &materials,
             warnings,
-        ))
+        );
+        scene.rig = imported.rig;
+        Ok(scene)
     }
 
     #[cfg(test)]
@@ -131,7 +143,7 @@ impl Scene {
         ))
     }
 
-    fn from_model(
+    pub fn from_model(
         model: Model,
         texture: Option<&Texture2D>,
         materials: &MaterialLibrary,
@@ -158,12 +170,142 @@ impl Scene {
         let solid = build_meshes(&model, &positions, None, materials);
         let textured =
             texture.map(|texture| build_meshes(&model, &positions, Some(texture), materials));
+        let solid_colors = solid
+            .iter()
+            .map(|m| m.vertices.iter().map(|v| v.color).collect())
+            .collect();
+        let textured_colors = textured.as_ref().map(|meshes: &Vec<Mesh>| {
+            meshes
+                .iter()
+                .map(|m| m.vertices.iter().map(|v| v.color).collect())
+                .collect()
+        });
         Self {
+            rig: None,
+            presentation: Mat4::from_scale_rotation_translation(
+                Vec3::splat((2.0 / extent) as f32),
+                Quat::IDENTITY,
+                Vec3::from_array(center.map(|v| (-v * 2.0 / extent) as f32)),
+            ),
+            solid_colors,
+            textured_colors,
             model,
             positions,
             solid,
             textured,
             warnings,
+        }
+    }
+}
+
+impl Scene {
+    pub fn set_model_transform(&mut self, transform: Mat4) {
+        self.presentation = transform;
+    }
+    pub fn load_motions(
+        &self,
+        path: &Path,
+    ) -> Result<psp_assets::rig::MotionLibrary, Box<dyn std::error::Error>> {
+        use std::io::Read;
+        let rig = self
+            .rig
+            .as_ref()
+            .ok_or("model has no supported skeleton/skin")?;
+        let file = std::fs::File::open(path)?;
+        if file.metadata()?.len() > 128 * 1024 * 1024 {
+            return Err("motion archive exceeds 128 MiB".into());
+        }
+        let mut bytes = Vec::new();
+        file.take(128 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
+        rig.load_clips(&bytes)
+    }
+    /// Deform source positions every frame, preserving UV seams and material colors.
+    pub fn animate(&mut self, pose: &[Transform]) {
+        let Some(rig) = &self.rig else {
+            return;
+        };
+        let palette = rig.skeleton.palette(pose);
+        let normal_presentation = self.presentation.inverse().transpose();
+        let normal_palette: Vec<Mat4> = palette.iter().map(|m| m.inverse().transpose()).collect();
+        for ((output, source), skin) in self
+            .positions
+            .iter_mut()
+            .zip(&self.model.positions)
+            .zip(&rig.skin)
+        {
+            *output = self.presentation.transform_point3(skin_point(
+                Vec3::from_array(*source),
+                skin,
+                &palette,
+            ));
+        }
+        let light = vec3(0.4, 0.8, 0.6).normalize();
+        for (meshes, colors) in std::iter::once((&mut self.solid, &self.solid_colors))
+            .chain(self.textured.iter_mut().zip(self.textured_colors.iter()))
+        {
+            for (batch, (mesh, colors)) in meshes.iter_mut().zip(colors).enumerate() {
+                for (local, vertex) in mesh.vertices.iter_mut().enumerate() {
+                    let triangle = batch * TRIANGLES_PER_MESH + local / 3;
+                    let corner = local % 3;
+                    let indices = self.model.triangles[triangle];
+                    let index = indices[corner];
+                    let [a, b, c] = indices.map(|i| Vec3::from_array(self.model.positions[i]));
+                    let normal = self.model.triangle_normals[triangle][corner]
+                        .map(|i| Vec3::from_array(self.model.normals[i]))
+                        .unwrap_or_else(|| (b - a).cross(c - a));
+                    let magnitude = normal.abs().max_element();
+                    let normal = if magnitude > 0.0 {
+                        (normal / magnitude).normalize_or_zero()
+                    } else {
+                        (b - a).cross(c - a).normalize_or_zero()
+                    };
+                    let influence = &rig.skin[index];
+                    let mut deformed = Vec3::ZERO;
+                    for (joint, weight) in influence.joints.iter().zip(influence.weights) {
+                        if weight > 0.0 {
+                            deformed +=
+                                normal_palette[*joint as usize].transform_vector3(normal) * weight;
+                        }
+                    }
+                    if influence.weights.iter().all(|w| *w == 0.0) {
+                        deformed = normal;
+                    }
+                    let old = 0.25 + 0.75 * normal.dot(light).max(0.0);
+                    let new = 0.25
+                        + 0.75
+                            * normal_presentation
+                                .transform_vector3(deformed)
+                                .normalize_or_zero()
+                                .dot(light)
+                                .max(0.0);
+                    vertex.position = self.positions[index];
+                    vertex.color = std::array::from_fn(|i| {
+                        if i == 3 {
+                            colors[local][3]
+                        } else {
+                            (colors[local][i] as f32 * new / old).clamp(0.0, 255.0) as u8
+                        }
+                    });
+                }
+            }
+        }
+    }
+    pub fn draw_skeleton(&self, pose: &[Transform]) {
+        let Some(rig) = &self.rig else {
+            return;
+        };
+        let globals = rig.skeleton.globals(pose);
+        for (i, bone) in rig.skeleton.bones.iter().enumerate() {
+            let p = self
+                .presentation
+                .transform_point3(globals[i].transform_point3(Vec3::ZERO));
+            draw_sphere(p, 0.025, None, YELLOW);
+            if let Some(parent) = bone.parent {
+                let parent = self
+                    .presentation
+                    .transform_point3(globals[parent].transform_point3(Vec3::ZERO));
+                draw_line_3d(parent, p, LIME);
+            }
         }
     }
 }
