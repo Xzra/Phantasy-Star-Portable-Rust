@@ -6,6 +6,7 @@ use psp_assets::{
     rig::{Bone, BoneTrack, Channel, Clip, Rig, Skeleton, Transform},
     Model,
 };
+use psp_core::character::Character;
 use psp_core::weapon::{PhotonArt, WeaponClass, WeaponKind};
 use psp_core::world::World;
 
@@ -14,6 +15,8 @@ pub struct Hunter {
     pub pose: Vec<Transform>,
     clips: Vec<Clip>,
     weapon_class: WeaponClass,
+    character: Character,
+    energy: f32,
     last_distance: f32,
     last_time: f32,
     gait: f32,
@@ -67,7 +70,7 @@ fn make_skeleton() -> Skeleton {
     Skeleton { bones }
 }
 
-fn authored_pose(skeleton: &Skeleton, state: usize, t: f32) -> Vec<Transform> {
+fn authored_pose(skeleton: &Skeleton, state: usize, t: f32, energy: f32) -> Vec<Transform> {
     let mut pose = skeleton.bind_pose();
     let phase = t * std::f32::consts::TAU;
     let idle = (phase).sin();
@@ -184,9 +187,14 @@ fn authored_pose(skeleton: &Skeleton, state: usize, t: f32) -> Vec<Transform> {
         pose[9].rotation = Quat::IDENTITY;
         pose[6].rotation = Quat::IDENTITY;
     }
+    if state >= 3 {
+        for i in [1, 2, 4, 5, 7, 8] {
+            pose[i].rotation = Quat::IDENTITY.slerp(pose[i].rotation, energy);
+        }
+    }
     pose
 }
-fn make_clips(skeleton: &Skeleton) -> Vec<Clip> {
+fn make_clips(skeleton: &Skeleton, energy: f32) -> Vec<Clip> {
     [
         ("Hunter idle", 2.4, 0),
         ("Hunter walk", 0.8, 1),
@@ -214,7 +222,7 @@ fn make_clips(skeleton: &Skeleton) -> Vec<Clip> {
         };
         let poses: Vec<_> = samples
             .iter()
-            .map(|t| authored_pose(skeleton, state, *t))
+            .map(|t| authored_pose(skeleton, state, *t, energy))
             .collect();
         let times: Vec<_> = samples.iter().map(|t| t * duration).collect();
         let tracks = (0..skeleton.bones.len())
@@ -249,6 +257,9 @@ impl Default for Hunter {
 }
 impl Hunter {
     fn for_class(weapon_class: WeaponClass) -> Self {
+        Self::for_character(weapon_class, &Character::default(), 1.0)
+    }
+    fn for_character(weapon_class: WeaponClass, character: &Character, energy: f32) -> Self {
         let skeleton = make_skeleton();
         let mut model = Model {
             material_names: vec![
@@ -256,6 +267,8 @@ impl Hunter {
                 "joint".into(),
                 "light".into(),
                 "trim".into(),
+                "skin".into(),
+                "hair".into(),
             ],
             ..Model::default()
         };
@@ -270,8 +283,34 @@ impl Hunter {
         part(2, vec3(0.0, -0.02, 0.0), vec3(0.62, 0.38, 0.38), 0);
         part(2, vec3(0.0, 0.02, 0.205), vec3(0.22, 0.12, 0.04), 2);
         part(2, vec3(0.0, 0.04, -0.23), vec3(0.4, 0.3, 0.14), 3);
-        part(3, vec3(0.0, 0.08, 0.0), vec3(0.36, 0.34, 0.34), 3);
-        part(3, vec3(0.0, 0.1, 0.18), vec3(0.3, 0.1, 0.035), 2);
+        if character.head == 0 {
+            part(3, vec3(0.0, 0.08, 0.0), vec3(0.36, 0.34, 0.34), 3);
+            part(3, vec3(0.0, 0.1, 0.18), vec3(0.3, 0.1, 0.035), 2);
+        } else {
+            part(3, vec3(0.0, 0.08, 0.0), vec3(0.32, 0.32, 0.3), 4);
+            part(3, vec3(0.0, 0.25, -0.02), vec3(0.36, 0.13, 0.32), 5);
+            part(3, vec3(0.0, 0.15, -0.16), vec3(0.34, 0.22, 0.09), 5);
+            for side in [-1.0, 1.0] {
+                part(
+                    3,
+                    vec3(side * 0.085, 0.1, 0.155),
+                    vec3(0.055, 0.04, 0.015),
+                    1,
+                );
+                part(3, vec3(side * 0.11, 0.23, 0.13), vec3(0.1, 0.1, 0.08), 5);
+            }
+            if character.head == 2 {
+                for (x, y, z) in [
+                    (-0.12, 0.33, -0.02),
+                    (0.0, 0.38, -0.04),
+                    (0.12, 0.34, -0.06),
+                    (0.0, 0.33, -0.17),
+                ] {
+                    part(3, vec3(x, y, z), vec3(0.12, 0.16, 0.13), 5);
+                    part(3, vec3(x, y + 0.09, z - 0.02), vec3(0.06, 0.08, 0.07), 5);
+                }
+            }
+        }
         for (shoulder, elbow, hand) in [(4, 5, 6), (7, 8, 9)] {
             part(shoulder, vec3(0.0, -0.02, 0.0), vec3(0.3, 0.22, 0.34), 0);
             part(shoulder, vec3(0.0, -0.19, 0.0), vec3(0.18, 0.28, 0.2), 1);
@@ -308,8 +347,21 @@ impl Hunter {
         // A visible thumb and curled fingers close around the handle.
         part(9, vec3(-0.065, -0.065, 0.0), vec3(0.055, 0.065, 0.14), 3);
         part(9, vec3(0.07, 0.015, 0.035), vec3(0.05, 0.08, 0.08), 3);
-        let materials=MaterialLibrary::from_mtl("newmtl armor\nKd 0.12 0.55 0.68\nnewmtl joint\nKd 0.09 0.14 0.2\nnewmtl light\nKd 0.3 0.95 1\nnewmtl trim\nKd 0.6 0.72 0.8").unwrap();
-        let clips = make_clips(&skeleton);
+        let colors = [
+            armor_color(character.armor),
+            [0.09, 0.14, 0.2],
+            accent_color(character.accent),
+            [0.6, 0.72, 0.8],
+            skin_color(character.skin),
+            hair_color(character.hair),
+        ];
+        let mtl = ["armor", "joint", "light", "trim", "skin", "hair"]
+            .into_iter()
+            .zip(colors)
+            .map(|(name, c)| format!("newmtl {name}\nKd {} {} {}\n", c[0], c[1], c[2]))
+            .collect::<String>();
+        let materials = MaterialLibrary::from_mtl(&mtl).unwrap();
+        let clips = make_clips(&skeleton, energy);
         let pose = skeleton.bind_pose();
         let vertices = model.positions.len();
         let mut scene = Scene::from_model(model, None, &materials, Vec::new());
@@ -319,6 +371,8 @@ impl Hunter {
             pose,
             clips,
             weapon_class,
+            character: character.clone(),
+            energy,
             last_distance: 0.0,
             last_time: 0.0,
             gait: 0.0,
@@ -329,17 +383,43 @@ impl Hunter {
     }
 }
 impl Hunter {
+    fn ensure_model(&mut self, class: WeaponClass, character: &Character, energy: f32) {
+        if class != self.weapon_class || character != &self.character || energy != self.energy {
+            let replacement = Self::for_character(class, character, energy);
+            self.scene = replacement.scene;
+            self.pose = replacement.pose;
+            self.clips = replacement.clips;
+            self.weapon_class = class;
+            self.character = character.clone();
+            self.energy = energy;
+        }
+    }
+    pub fn clips(&self) -> &[Clip] {
+        &self.clips
+    }
+    /// Shared live character / motion preview. Time is in seconds, not frames.
+    pub fn preview(
+        &mut self,
+        character: &Character,
+        class: WeaponClass,
+        clip: usize,
+        time: f32,
+        energy: f32,
+    ) {
+        self.ensure_model(class, character, energy);
+        let skeleton = &self.scene.rig.as_ref().unwrap().skeleton;
+        let clip = &self.clips[clip.min(self.clips.len() - 1)];
+        self.pose = clip.sample(skeleton, time.clamp(0.0, clip.duration), false);
+        self.scene
+            .set_model_transform(Mat4::from_scale(body_scale(character.build)));
+        self.scene.animate(&self.pose);
+    }
     pub fn update(&mut self, world: &World) {
         // An in-flight swing retains its original mesh as well as its rules.
         let class = world
             .attack()
             .map_or(world.weapon().kind.class(), |a| a.class);
-        if class != self.weapon_class {
-            let replacement = Self::for_class(class);
-            self.scene = replacement.scene;
-            self.pose = replacement.pose;
-            self.weapon_class = class;
-        }
+        self.ensure_model(class, world.character(), 1.0);
         let delta = (world.time() - self.last_time).clamp(0.0, 0.1);
         let distance = (world.distance_walked() - self.last_distance).max(0.0);
         let speed = if delta > 0.0 { distance / delta } else { 0.0 };
@@ -411,7 +491,8 @@ impl Hunter {
         }
 
         let p = world.position();
-        let transform = Mat4::from_rotation_translation(
+        let transform = Mat4::from_scale_rotation_translation(
+            body_scale(world.character().build),
             Quat::from_rotation_y(world.facing()),
             vec3(p.x, world.height(), p.z),
         );
@@ -457,6 +538,54 @@ impl Hunter {
         if bones {
             self.scene.draw_skeleton(&self.pose);
         }
+    }
+}
+
+pub const COLOR_NAMES: [&str; 6] = ["Ocean", "Crimson", "Violet", "Ivory", "Forest", "Midnight"];
+pub fn armor_color(index: u8) -> [f32; 3] {
+    [
+        [0.12, 0.55, 0.68],
+        [0.75, 0.13, 0.22],
+        [0.43, 0.24, 0.75],
+        [0.82, 0.86, 0.9],
+        [0.18, 0.5, 0.3],
+        [0.1, 0.15, 0.25],
+    ][index.min(5) as usize]
+}
+pub fn accent_color(index: u8) -> [f32; 3] {
+    [
+        [0.3, 0.95, 1.0],
+        [1.0, 0.45, 0.25],
+        [0.8, 0.5, 1.0],
+        [1.0, 0.9, 0.55],
+        [0.4, 1.0, 0.6],
+        [0.75, 0.85, 1.0],
+    ][index.min(5) as usize]
+}
+pub fn skin_color(index: u8) -> [f32; 3] {
+    [
+        [0.97, 0.8, 0.68],
+        [0.83, 0.6, 0.43],
+        [0.64, 0.4, 0.28],
+        [0.4, 0.24, 0.18],
+        [0.24, 0.14, 0.11],
+    ][index.min(4) as usize]
+}
+pub fn hair_color(index: u8) -> [f32; 3] {
+    [
+        [0.12, 0.1, 0.15],
+        [0.35, 0.19, 0.12],
+        [0.9, 0.73, 0.35],
+        [0.85, 0.9, 0.97],
+        [0.55, 0.16, 0.25],
+        [0.3, 0.28, 0.7],
+    ][index.min(5) as usize]
+}
+fn body_scale(build: u8) -> Vec3 {
+    match build {
+        0 => vec3(0.88, 1.04, 0.93),
+        2 => vec3(1.12, 0.98, 1.08),
+        _ => Vec3::ONE,
     }
 }
 

@@ -1,5 +1,6 @@
 //! Rendering-independent solo gameplay. A future server can own the same session.
 
+pub mod character;
 pub mod inventory;
 pub mod profile;
 pub mod shop;

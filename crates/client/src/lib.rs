@@ -23,3 +23,8 @@ pub mod monster;
 #[cfg(feature = "viewer")]
 mod rig_geometry;
 pub mod saves;
+
+#[cfg(feature = "viewer")]
+pub mod character_ui;
+#[cfg(feature = "viewer")]
+pub mod widgets;

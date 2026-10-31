@@ -3,6 +3,7 @@ use crate::inventory::InventoryState;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Profile {
+    pub character: crate::character::Character,
     pub level: u32,
     pub experience: u32,
     pub inventory: InventoryState,

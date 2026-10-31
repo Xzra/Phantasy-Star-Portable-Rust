@@ -167,7 +167,11 @@ pub fn hud(
     presentation::panel(Rect::new(18.0, 16.0, 300.0, 43.0), CYAN);
     draw_rectangle(18.0, 16.0, 3.0, 43.0, CYAN);
     draw_text(
-        format!("HUNTER / {}", world.weapon().kind.name().to_uppercase()),
+        format!(
+            "{} / {}",
+            world.character().name,
+            world.weapon().kind.class().name()
+        ),
         30.0,
         36.0,
         17.0,

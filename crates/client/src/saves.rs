@@ -1,5 +1,6 @@
 //! Versioned, bounded character saves. Invalid existing files are never overwritten.
 use psp_core::{
+    character::Character,
     inventory::{InventoryState, WeaponId, WeaponItem},
     profile::Profile,
     weapon::{PhotonArt, WeaponKind, WeaponLoadout},
@@ -19,6 +20,8 @@ static SERIAL: AtomicU64 = AtomicU64::new(0);
 #[serde(deny_unknown_fields)]
 struct Record {
     version: u32,
+    #[serde(default)]
+    character: Option<CharacterRecord>,
     level: u32,
     experience: u32,
     meseta: u32,
@@ -33,6 +36,46 @@ struct WeaponRecord {
     id: u32,
     kind: String,
     art: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CharacterRecord {
+    pub name: String,
+    pub armor: u8,
+    pub accent: u8,
+    pub skin: u8,
+    pub hair: u8,
+    pub head: u8,
+    pub build: u8,
+}
+impl From<&Character> for CharacterRecord {
+    fn from(c: &Character) -> Self {
+        Self {
+            name: c.name.clone(),
+            armor: c.armor,
+            accent: c.accent,
+            skin: c.skin,
+            hair: c.hair,
+            head: c.head,
+            build: c.build,
+        }
+    }
+}
+impl CharacterRecord {
+    pub fn character(&self) -> Result<Character, String> {
+        let c = Character {
+            name: self.name.clone(),
+            armor: self.armor,
+            accent: self.accent,
+            skin: self.skin,
+            hair: self.hair,
+            head: self.head,
+            build: self.build,
+        };
+        c.validate().map_err(str::to_owned)?;
+        Ok(c)
+    }
 }
 
 fn kind_name(kind: WeaponKind) -> &'static str {
@@ -77,7 +120,8 @@ fn parse_art(name: &str) -> Result<PhotonArt, String> {
 pub fn encode(profile: &Profile) -> Result<Vec<u8>, String> {
     World::from_profile(profile.clone()).map_err(str::to_owned)?;
     let record = Record {
-        version: 1,
+        version: 2,
+        character: Some(CharacterRecord::from(&profile.character)),
         level: profile.level,
         experience: profile.experience,
         meseta: profile.inventory.meseta,
@@ -109,9 +153,12 @@ pub fn decode(bytes: &[u8]) -> Result<Profile, String> {
         return Err("Save exceeds the 64 KiB limit.".into());
     }
     let record: Record = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-    if record.version != 1 {
-        return Err("Unsupported save version.".into());
-    }
+    let character = match (record.version, record.character) {
+        (1, None) => Character::default(),
+        (2, Some(character)) => character.character()?,
+        (2, None) => return Err("Version 2 save is missing its character.".into()),
+        _ => return Err("Unsupported save version or character fields.".into()),
+    };
     let mut weapons = Vec::new();
     for w in record.weapons {
         weapons.push(WeaponItem {
@@ -128,6 +175,7 @@ pub fn decode(bytes: &[u8]) -> Result<Profile, String> {
         .map(|a| parse_art(a))
         .collect::<Result<Vec<_>, _>>()?;
     let profile = Profile {
+        character,
         level: record.level,
         experience: record.experience,
         inventory: InventoryState {
@@ -159,7 +207,7 @@ fn read_optional(path: &Path) -> Result<Option<Vec<u8>>, String> {
     }
     Ok(Some(bytes))
 }
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let parent = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -288,6 +336,10 @@ impl SaveStore {
             self.flush(profile);
         }
     }
+    /// Only a missing primary save starts character creation. Invalid files never do.
+    pub fn is_new(&self) -> bool {
+        self.enabled() && self.known_bytes.is_none() && self.last_saved.is_none()
+    }
     pub fn enabled(&self) -> bool {
         self.path.is_some() && !self.blocked
     }
@@ -331,6 +383,40 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+    #[test]
+    fn legacy_profiles_migrate_and_only_missing_saves_request_creation() {
+        let temp = Temp::new();
+        let (mut store, mut world) = SaveStore::open(temp.path());
+        assert!(store.is_new());
+        assert!(!temp.path().exists()); // Merely entering/canceling creation writes nothing.
+        let character = Character {
+            name: "Astra".into(),
+            armor: 2,
+            head: 2,
+            build: 0,
+            ..Character::default()
+        };
+        world.set_character(character.clone()).unwrap();
+        store.flush(&world.profile());
+        assert!(!store.is_new());
+        let (loaded, restored) = SaveStore::open(temp.path());
+        assert!(!loaded.is_new());
+        assert_eq!(restored.character(), &character);
+        let mut legacy: serde_json::Value =
+            serde_json::from_slice(&encode(&world.profile()).unwrap()).unwrap();
+        legacy["version"] = serde_json::json!(1);
+        legacy.as_object_mut().unwrap().remove("character");
+        let migrated = decode(&serde_json::to_vec(&legacy).unwrap()).unwrap();
+        assert_eq!(migrated.character, Character::default());
+        assert_eq!(migrated.inventory, world.profile().inventory);
+        legacy["version"] = serde_json::json!(2);
+        assert!(decode(&serde_json::to_vec(&legacy).unwrap()).is_err());
+        fs::write(temp.path(), b"invalid existing save").unwrap();
+        let (invalid, _) = SaveStore::open(temp.path());
+        assert!(!invalid.is_new());
+        assert!(!invalid.enabled());
+        assert_eq!(fs::read(temp.path()).unwrap(), b"invalid existing save");
     }
     #[test]
     fn round_trip_preserves_owned_gear_disc_slots_and_progression() {
@@ -381,7 +467,7 @@ mod tests {
             vec![0; LIMIT as usize + 1],
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("\"version\": 1", "\"version\": 2")
+                .replace("\"version\": 2", "\"version\": 99")
                 .into_bytes(),
             String::from_utf8(bytes)
                 .unwrap()

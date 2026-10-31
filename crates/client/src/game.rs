@@ -407,6 +407,22 @@ async fn main() {
     } else {
         (SaveStore::disabled(), World::default())
     };
+    if persistent_run && !diagnostic && save_store.is_new() {
+        let Some(character) =
+            psp_client::character_ui::create_character(world.character().clone()).await
+        else {
+            return;
+        };
+        world
+            .set_character(character)
+            .expect("creator validates before confirming");
+        save_store.flush(&world.profile());
+        if std::env::var_os("PSP_CREATOR_SMOKE").is_some() {
+            assert!(!save_store.is_new(), "confirmed character was not saved");
+            println!("Character creator smoke passed: confirmed character persisted");
+            return;
+        }
+    }
     if let Ok(class) = std::env::var("PSP_SMOKE_CLASS") {
         let (kind, art) = match class.as_str() {
             "partisan" => (WeaponKind::RecruitPartisan, PhotonArt::AssaultThrust),

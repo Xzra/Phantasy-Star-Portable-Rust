@@ -155,6 +155,7 @@ impl TrialStats {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct World {
+    character: crate::character::Character,
     inventory: Inventory,
     session: Session,
     position: Position,
@@ -192,6 +193,7 @@ pub struct World {
 impl Default for World {
     fn default() -> Self {
         Self {
+            character: crate::character::Character::default(),
             inventory: Inventory::default(),
             session: Session::default(),
             position: Position { x: 0.0, z: 5.5 },
@@ -266,17 +268,31 @@ fn actor_step_free(from: Position, to: Position, other: Position) -> bool {
 impl World {
     pub fn profile(&self) -> crate::profile::Profile {
         crate::profile::Profile {
+            character: self.character.clone(),
             level: self.session.hunter().level,
             experience: self.session.hunter().experience,
             inventory: self.inventory.snapshot(),
         }
     }
     pub fn from_profile(profile: crate::profile::Profile) -> Result<Self, &'static str> {
+        profile.character.validate()?;
         Ok(Self {
+            character: profile.character,
             session: Session::from_progression(profile.level, profile.experience)?,
             inventory: Inventory::from_state(profile.inventory)?,
             ..Self::default()
         })
+    }
+    pub fn character(&self) -> &crate::character::Character {
+        &self.character
+    }
+    pub fn set_character(
+        &mut self,
+        character: crate::character::Character,
+    ) -> Result<(), &'static str> {
+        character.validate()?;
+        self.character = character;
+        Ok(())
     }
     pub fn can_shop(&self) -> bool {
         self.session.location() == Location::Lobby

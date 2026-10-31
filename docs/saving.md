@@ -1,6 +1,6 @@
 # Character saves
 
-The game automatically saves level, experience, Meseta, owned weapon instances,
+The game automatically saves character name and appearance, level, experience, Meseta, owned weapon instances,
 PA discs, the equipped weapon and all PA assignments. F5 or **Save progress** in
 the pause menu saves immediately. Normal changes autosave after about a second;
 the Quit button and ordinary window close also flush progress.
@@ -26,9 +26,11 @@ unknown schema versions, unknown items, invalid level/XP, excessive money,
 duplicate IDs/discs, impossible assignments, missing equipped weapons and bags
 over 32 items. Input is bounded to 64 KiB.
 
-Version 1 sword-only profiles remain valid. Partisans, Knuckles and their class
-PAs use new stable item names in the same format; incompatible PA assignments
-are rejected. Returning to an older executable after buying new items may
+New writes use version 2 with validated identity and appearance. Version 1
+profiles migrate to the original helmeted Hunter while retaining progression
+and gear. Only a missing primary save opens the character creator; cancellation
+writes nothing. Partisans, Knuckles and their class PAs retain stable item names;
+incompatible PA assignments are rejected. Returning to an older executable after buying new items may
 reject the unfamiliar items, preserving the profile instead of overwriting it.
 
 Invalid or unreadable existing saves are preserved and saving is disabled for

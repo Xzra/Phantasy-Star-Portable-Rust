@@ -12,7 +12,9 @@ models, motions, Forest/lobby grids, commands, and current limitations.
 ## Start here: playable solo prototype
 
 Download `phantasy-star.exe` from [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases)
-and open it to enter the original orbital lobby. The original Forest Crawler
+and open it to create a Hunter on a new save, then enter the original orbital lobby.
+Choose a name, head style, body preset and colors in the live
+[character creator](docs/character-creator.md). Existing saves keep their progress. The original Forest Crawler
 and Hunter are animated without downloads; no game installation is required.
 Walk to the blue mission terminal and press E to enter Hunter training. Clear
 three waves, gain a level, then use the return pad. The ZIP also includes
