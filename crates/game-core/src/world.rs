@@ -74,6 +74,7 @@ pub struct Input {
     pub jump: bool,
     pub lock_on: bool,
     pub photon_art: bool,
+    pub heal: bool,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EnemyAction {
@@ -113,6 +114,32 @@ pub enum WorldEvent {
     Gameplay(Event),
     Message(&'static str),
 }
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct TrialStats {
+    pub duration: f32,
+    pub defeats: u8,
+    pub perfect_attacks: u32,
+    pub evades: u32,
+    pub damage_taken: u32,
+    pub heals_used: u8,
+}
+impl TrialStats {
+    pub fn score(&self) -> u32 {
+        (1000.0 + self.perfect_attacks as f32 * 80.0 + self.evades as f32 * 60.0
+            - self.damage_taken as f32 * 5.0
+            - self.heals_used as f32 * 100.0
+            - self.duration * 5.0)
+            .max(0.0) as u32
+    }
+    pub fn rank(&self) -> &'static str {
+        match self.score() {
+            900.. => "S",
+            700.. => "A",
+            450.. => "B",
+            _ => "C",
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq)]
 pub struct World {
     session: Session,
@@ -145,6 +172,8 @@ pub struct World {
     hurt_remaining: f32,
     invulnerable: f32,
     hit_stop: f32,
+    wave_delay: f32,
+    stats: TrialStats,
 }
 impl Default for World {
     fn default() -> Self {
@@ -179,6 +208,8 @@ impl Default for World {
             hurt_remaining: 0.0,
             invulnerable: 0.0,
             hit_stop: 0.0,
+            wave_delay: 0.0,
+            stats: TrialStats::default(),
         }
     }
 }
@@ -200,6 +231,19 @@ fn normalized(input: Position) -> Position {
     }
 }
 impl World {
+    pub fn stats(&self) -> &TrialStats {
+        &self.stats
+    }
+    pub fn wave_delay(&self) -> f32 {
+        self.wave_delay
+    }
+    pub fn enemy_windup_duration(&self) -> f32 {
+        if self.session.wave() == 3 {
+            0.5
+        } else {
+            0.65
+        }
+    }
     pub fn session(&self) -> &Session {
         &self.session
     }
@@ -274,11 +318,7 @@ impl World {
         }
         match self.session.location() {
             Location::Lobby if self.position.distance(TERMINAL) <= 2.2 => {
-                Some(if self.session.quest() == QuestState::Available {
-                    "E / Begin Hunter combat trial"
-                } else {
-                    "Trial complete / Esc > New session"
-                })
+                Some("E / Deploy Hunter trial (3 waves)")
             }
             Location::TrainingField if self.position.distance(RETURN_PAD) <= 2.2 => {
                 Some(if self.session.quest() == QuestState::Complete {
@@ -315,6 +355,7 @@ impl World {
         self.terrain_free(position, PLAYER_RADIUS)
             && (self.session.location() != Location::TrainingField
                 || self.session.quest() != QuestState::Active
+                || self.session.enemy_health() == 0
                 || position.distance(self.enemy_position) >= 1.1 + PLAYER_RADIUS)
     }
     fn move_player(&mut self, movement: Position, speed: f32, delta: f32) {
@@ -381,6 +422,8 @@ impl World {
         self.hurt_remaining = 0.0;
         self.invulnerable = 0.0;
         self.hit_stop = 0.0;
+        self.wave_delay = 0.0;
+        self.stats = TrialStats::default();
     }
     fn begin_attack(&mut self, photon: bool, perfect: bool, events: &mut Vec<WorldEvent>) {
         self.combo_stage = if photon {
@@ -419,6 +462,7 @@ impl World {
         if self.session.location() != Location::TrainingField
             || self.session.quest() != QuestState::Active
             || self.defeated()
+            || self.session.enemy_health() == 0
         {
             return;
         }
@@ -433,17 +477,21 @@ impl World {
                     self.strike_direction = d;
                     events.push(WorldEvent::EnemyWindup);
                 } else {
-                    self.move_enemy(d, 2.8, delta);
+                    self.move_enemy(d, if self.session.wave() == 3 { 3.4 } else { 2.8 }, delta);
                 }
             }
-            EnemyAction::Windup if self.enemy_elapsed >= 0.65 => {
+            EnemyAction::Windup if self.enemy_elapsed >= self.enemy_windup_duration() => {
                 self.enemy_action = EnemyAction::Strike;
                 self.enemy_elapsed = 0.0;
                 self.strike_hit = false;
                 events.push(WorldEvent::EnemyStrike);
             }
             EnemyAction::Strike => {
-                self.move_enemy(self.strike_direction, 8.5, delta);
+                self.move_enemy(
+                    self.strike_direction,
+                    8.5 + (self.session.wave() - 1) as f32 * 0.5,
+                    delta,
+                );
                 if !self.strike_hit && self.enemy_elapsed >= 0.08 {
                     self.strike_hit = true;
                     let to = direction(self.enemy_position, self.position);
@@ -454,11 +502,14 @@ impl World {
                         && self.height < 1.0
                     {
                         if self.dodge_remaining > 0.04 {
+                            self.stats.evades += 1;
                             events.push(WorldEvent::Evaded);
                         } else if self.invulnerable == 0.0 {
+                            let damage = 18 + 2 * (self.session.wave() - 1) as u32;
+                            self.stats.damage_taken += damage.min(self.session.hunter().health);
                             events.extend(
                                 self.session
-                                    .damage_hunter(18)
+                                    .damage_hunter(damage)
                                     .into_iter()
                                     .map(WorldEvent::Gameplay),
                             );
@@ -534,6 +585,48 @@ impl World {
             self.locked = false;
             return events;
         }
+        if self.session.location() == Location::TrainingField
+            && self.session.quest() == QuestState::Active
+        {
+            self.stats.duration += delta;
+        }
+        if self.wave_delay > 0.0 {
+            self.wave_delay = (self.wave_delay - delta).max(0.0);
+            if self.wave_delay == 0.0 {
+                if let Ok(next) = self.session.execute(Command::NextWave) {
+                    events.extend(next.into_iter().map(WorldEvent::Gameplay));
+                    self.enemy_position = match self.session.wave() {
+                        2 => Position { x: -3.5, z: -4.5 },
+                        _ => Position { x: 3.5, z: -4.5 },
+                    };
+                    let preferred = self.enemy_position;
+                    self.enemy_position = [
+                        preferred,
+                        ENEMY,
+                        Position { x: -8.0, z: 8.0 },
+                        Position { x: 8.0, z: 8.0 },
+                    ]
+                    .into_iter()
+                    .find(|p| self.terrain_free(*p, 0.9) && p.distance(self.position) >= 3.0)
+                    .unwrap_or(ENEMY);
+                    self.enemy_action = EnemyAction::Approach;
+                    self.enemy_elapsed = 0.0;
+                    self.strike_hit = false;
+                    self.pp = (self.pp + 25.0).min(100.0);
+                }
+            }
+        }
+        if input.heal {
+            if let Ok(healed) = self.session.execute(Command::UseMate) {
+                self.stats.heals_used += 1;
+                events.extend(healed.into_iter().map(WorldEvent::Gameplay));
+                self.attack = None;
+                self.combo_window = 0.0;
+                self.buffered = false;
+                self.buffered_perfect = false;
+                self.buffered_photon = false;
+            }
+        }
         if input.lock_on
             && self.session.location() == Location::TrainingField
             && self.session.quest() == QuestState::Active
@@ -541,6 +634,7 @@ impl World {
             self.locked = !self.locked;
         }
         if self.session.quest() != QuestState::Active
+            || self.session.enemy_health() == 0
             || self.position.distance(self.enemy_position) > 22.0
         {
             self.locked = false;
@@ -661,6 +755,9 @@ impl World {
                         power
                     };
                     if let Ok(result) = self.session.damage_enemy(power) {
+                        if attack.perfect {
+                            self.stats.perfect_attacks += 1;
+                        }
                         events.extend(result.into_iter().map(WorldEvent::Gameplay));
                         if !attack.photon {
                             self.pp = (self.pp + 8.0).min(100.0);
@@ -670,7 +767,11 @@ impl World {
                         } else {
                             0.035
                         };
-                        if self.session.quest() == QuestState::Complete {
+                        if self.session.enemy_health() == 0 {
+                            self.stats.defeats += 1;
+                            if self.session.quest() == QuestState::Active {
+                                self.wave_delay = 2.0;
+                            }
                             self.enemy_action = EnemyAction::Dead;
                             self.enemy_elapsed = 0.0;
                             self.locked = false;
@@ -988,6 +1089,118 @@ mod tests {
         assert_eq!(w.enemy_position, ENEMY);
     }
     #[test]
+    fn wave_transitions_keep_health_recover_pp_and_avoid_player_spawn() {
+        let mut w = close_trial();
+        w.position = Position { x: -3.5, z: -4.5 };
+        w.pp = 10.0;
+        w.session.damage_hunter(25);
+        w.session.damage_enemy(999).unwrap();
+        w.enemy_action = EnemyAction::Dead;
+        w.wave_delay = 2.0;
+        assert!(w.session.damage_enemy(1).is_err());
+        ticks(&mut w, 121, Input::default());
+        assert_eq!(w.session.wave(), 2);
+        assert_eq!(w.session.enemy_health(), 168);
+        assert_eq!(w.session.hunter().health, 75);
+        assert!(w.enemy_position.distance(w.position) > 2.9);
+        assert!(w.pp >= 35.0);
+        assert_eq!(w.session.hunter().level, 1);
+    }
+    #[test]
+    fn recovery_charges_and_trial_stats_reset_on_retry() {
+        let mut w = close_trial();
+        w.step(
+            Input {
+                heal: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        assert_eq!(w.session.mates(), 3);
+        for _ in 0..3 {
+            w.session.damage_hunter(50);
+            w.step(
+                Input {
+                    heal: true,
+                    ..Input::default()
+                },
+                FIXED_STEP,
+            );
+        }
+        assert_eq!(w.session.mates(), 0);
+        assert_eq!(w.stats.heals_used, 3);
+        let health = w.session.hunter().health;
+        w.step(
+            Input {
+                heal: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        assert_eq!(w.session.hunter().health, health);
+        w.session.damage_hunter(999);
+        w.step(
+            Input {
+                heal: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        assert!(w.defeated());
+        w.step(
+            Input {
+                interact: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        assert_eq!(w.session.wave(), 1);
+        assert_eq!(w.session.mates(), 3);
+        assert_eq!(w.stats, TrialStats::default());
+    }
+    #[test]
+    fn results_reward_contact_skill_and_stop_timing_after_clear() {
+        let skilled = TrialStats {
+            duration: 20.0,
+            perfect_attacks: 3,
+            evades: 2,
+            defeats: 3,
+            ..TrialStats::default()
+        };
+        let hurt = TrialStats {
+            damage_taken: 80,
+            heals_used: 2,
+            ..skilled.clone()
+        };
+        assert!(skilled.score() > hurt.score());
+        assert_eq!(skilled.rank(), "S");
+        let mut w = close_trial();
+        for _ in 0..2400 {
+            w.enemy_action = EnemyAction::Recover;
+            w.enemy_elapsed = -100.0;
+            w.position = Position {
+                x: w.enemy_position.x,
+                z: w.enemy_position.z + 2.1,
+            };
+            w.facing = std::f32::consts::PI;
+            w.step(
+                Input {
+                    attack: true,
+                    ..Input::default()
+                },
+                FIXED_STEP,
+            );
+            if w.session.quest() == QuestState::Complete {
+                break;
+            }
+        }
+        assert_eq!(w.stats.defeats, 3);
+        assert_eq!(w.session.hunter().level, 2);
+        let stats = w.stats.clone();
+        ticks(&mut w, 60, Input::default());
+        assert_eq!(w.stats, stats);
+    }
+    #[test]
     fn jump_lands_and_quest_rewards_only_once() {
         let mut w = close_trial();
         w.step(
@@ -1000,14 +1213,25 @@ mod tests {
         assert!(w.height > 0.0);
         ticks(&mut w, 60, Input::default());
         assert_eq!(w.height, 0.0);
-        ticks(
-            &mut w,
-            800,
-            Input {
-                attack: true,
-                ..Input::default()
-            },
-        );
+        for _ in 0..2400 {
+            w.enemy_action = EnemyAction::Recover;
+            w.enemy_elapsed = -100.0;
+            w.position = Position {
+                x: w.enemy_position.x,
+                z: w.enemy_position.z + 2.1,
+            };
+            w.facing = std::f32::consts::PI;
+            w.step(
+                Input {
+                    attack: true,
+                    ..Input::default()
+                },
+                FIXED_STEP,
+            );
+            if w.session.quest() == QuestState::Complete {
+                break;
+            }
+        }
         assert_eq!(w.session.quest(), QuestState::Complete);
         assert_eq!(w.session.hunter().level, 2);
         ticks(
