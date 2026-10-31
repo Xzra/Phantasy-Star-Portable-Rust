@@ -12,7 +12,7 @@ use psp_client::{
     shop_ui::{self, ShopMenu},
 };
 use psp_core::{
-    weapon::PhotonArt,
+    weapon::{PhotonArt, WeaponKind},
     world::{
         EnemyAction, Input, Position, World, WorldEvent, ENEMY, FIXED_STEP, RETURN_PAD, TERMINAL,
     },
@@ -84,6 +84,8 @@ fn smoke_input(world: &World) -> Input {
     }
     let active = world.session().location() == Location::TrainingField
         && world.session().quest() == QuestState::Active;
+    let reach = world.weapon().kind.class().attack(1).range;
+    let stand_off = (reach - 0.4).min(2.8);
     let goal = if world.session().location() == Location::Lobby {
         TERMINAL
     } else if active {
@@ -91,8 +93,8 @@ fn smoke_input(world: &World) -> Input {
         let p = world.position();
         let d = p.distance(enemy).max(0.01);
         Position {
-            x: enemy.x + (p.x - enemy.x) / d * 2.0,
-            z: enemy.z + (p.z - enemy.z) / d * 2.0,
+            x: enemy.x + (p.x - enemy.x) / d * stand_off,
+            z: enemy.z + (p.z - enemy.z) / d * stand_off,
         }
     } else {
         RETURN_PAD
@@ -118,14 +120,16 @@ fn smoke_input(world: &World) -> Input {
         },
         sprint: true,
         interact: !active && distance < 2.0,
-        attack: active && world.position().distance(world.enemy_position()) < 2.6,
+        attack: active && world.position().distance(world.enemy_position()) < reach,
         photon_art: active
             && world.attack().is_none()
             && world
                 .weapon()
                 .photon_art
                 .is_some_and(|a| world.pp() >= a.spec().pp)
-            && world.position().distance(world.enemy_position()) < 3.2,
+            && world.weapon().photon_art.is_some_and(|a| {
+                world.position().distance(world.enemy_position()) < a.spec().range
+            }),
         lock_on: active && !world.locked_on(),
         dodge,
         heal: active && world.session().hunter().health <= 60 && world.session().mates() > 0,
@@ -385,6 +389,7 @@ async fn main() {
         "PSP_GAME_CAPTURE",
         "PSP_GAME_PREVIEW",
         "PSP_SMOKE_WEAPON",
+        "PSP_SMOKE_CLASS",
         "PSP_SMOKE_ART",
     ]
     .iter()
@@ -402,6 +407,21 @@ async fn main() {
     } else {
         (SaveStore::disabled(), World::default())
     };
+    if let Ok(class) = std::env::var("PSP_SMOKE_CLASS") {
+        let (kind, art) = match class.as_str() {
+            "partisan" => (WeaponKind::RecruitPartisan, PhotonArt::AssaultThrust),
+            "knuckles" => (WeaponKind::RecruitKnuckles, PhotonArt::MeteorFist),
+            _ => panic!("PSP_SMOKE_CLASS must be partisan or knuckles"),
+        };
+        let mut profile = world.profile();
+        let mut bag = psp_core::inventory::Inventory::from_state(profile.inventory).unwrap();
+        let id = bag.grant_weapon(kind).unwrap();
+        bag.grant_disc(art).unwrap();
+        bag.assign(id, Some(art)).unwrap();
+        bag.equip(id).unwrap();
+        profile.inventory = bag.snapshot();
+        world = World::from_profile(profile).unwrap();
+    }
     if let Ok(id) = std::env::var("PSP_SMOKE_WEAPON") {
         world
             .equip_weapon(psp_core::inventory::WeaponId(

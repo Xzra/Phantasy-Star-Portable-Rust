@@ -7,7 +7,7 @@ and face the training target, then attack. Defeat it to reach level 2, follow th
 yellow lights to the return pad, and press E to return to the lobby.
 
 WASD: move     Shift: sprint     Space: jump     Q: lock on
-Left mouse / J: sword combo     X: step          RMB / F: equipped Photon Art
+Left mouse / J: weapon combo     X: step          RMB / F: equipped Photon Art
 H: recovery (3 charges, up to 40 HP)     E: interact / retry after defeat
 Middle mouse drag / arrows: orbit camera     Wheel: zoom     Escape: pause
 Tab / I: inventory. Click a weapon or Up/Down selects it; E equips it.
@@ -22,7 +22,7 @@ trade button or press Enter. Escape leaves; Tab / I opens inventory.
 New characters start with 300 Meseta; clearing all three trial waves awards 300.
 Weapon prices: Training Sword 60, Hunter Saber 180, Photon Edge 320.
 PA prices: Sweep 120, Cleave 160, Thrust 100. Selling returns half the buy price.
-Purchased weapons have empty PA slots. Selling a sword returns its PA to the
+Purchased weapons have empty PA slots. Selling a weapon returns its PA to the
 bag; selling a PA clears its slot. Equipped weapons cannot be sold. Duplicate
 owned PA discs, full bags and insufficient funds are rejected without a charge.
 Currency, purchases and equipment now autosave between launches.
@@ -51,13 +51,25 @@ are owned. Assigning a disc moves it from the previous weapon; displaced or
 removed discs return to the bag. The HUD shows the equipped weapon and attack
 power. Gear bonuses affect normal attacks and Photon Arts.
 
+ADDITIONAL WEAPON CLASSES
+Buy Recruit Partisan (180 Meseta) and Assault Thrust disc (100) from Mira for
+long, narrow forward thrusts. Buy Recruit Knuckles (160) and Meteor Fist disc
+(80) for fast close-range jab/cross/uppercut combos. Each adds +2 ATK and has
+its own original weapon mesh and animations. Weapons start with empty PA slots.
+Open inventory, select the new weapon, E equips it; click its compatible PA or
+press 1 to assign it. Only compatible owned discs appear for that weapon.
+Sword arts cannot be assigned to Partisans or Knuckles. Existing saves carry on
+with their current gear; new classes are optional shop purchases.
+
 PHOTON ARTS
 Photon Sweep: 35 PP, spinning cut, hits around you.
 Rising Cleave: 30 PP, heavy upward cut, strongest close-range hit.
-Piercing Thrust: 20 PP, quick narrow attack, longest reach.
-Equip one art to each sword's RMB slot. The HUD shows the active weapon's art
+Piercing Thrust: 20 PP, quick narrow sword attack with extended reach.
+Assault Thrust: 25 PP, long narrow Partisan thrust.
+Meteor Fist: 25 PP, heavy close-range Knuckles punch.
+Equip one compatible art to each weapon's RMB slot. The HUD shows the active weapon's art
 and PP cost. An empty slot or insufficient PP cannot activate an art. These are
-original prototype skills. Equipment choices last for this session.
+original prototype skills. Equipment choices autosave between launches.
 
 Time a fresh normal-attack press when the ring turns orange for a stronger
 follow-up. Holding repeats untimed attacks. Normal hits restore PP. Avoid the

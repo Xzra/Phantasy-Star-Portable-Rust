@@ -9,13 +9,17 @@ pub enum StockItem {
     Weapon(WeaponKind),
     Disc(PhotonArt),
 }
-pub const STOCK: [StockItem; 6] = [
+pub const STOCK: [StockItem; 10] = [
     StockItem::Weapon(WeaponKind::TrainingSword),
     StockItem::Weapon(WeaponKind::HunterSaber),
     StockItem::Weapon(WeaponKind::PhotonEdge),
     StockItem::Disc(PhotonArt::Sweep),
     StockItem::Disc(PhotonArt::RisingCleave),
     StockItem::Disc(PhotonArt::PiercingThrust),
+    StockItem::Weapon(WeaponKind::RecruitPartisan),
+    StockItem::Disc(PhotonArt::AssaultThrust),
+    StockItem::Weapon(WeaponKind::RecruitKnuckles),
+    StockItem::Disc(PhotonArt::MeteorFist),
 ];
 impl StockItem {
     pub fn name(self) -> &'static str {
@@ -29,6 +33,10 @@ impl StockItem {
             Self::Weapon(WeaponKind::TrainingSword) => 60,
             Self::Weapon(WeaponKind::HunterSaber) => 180,
             Self::Weapon(WeaponKind::PhotonEdge) => 320,
+            Self::Weapon(WeaponKind::RecruitPartisan) => 180,
+            Self::Weapon(WeaponKind::RecruitKnuckles) => 160,
+            Self::Disc(PhotonArt::AssaultThrust) => 100,
+            Self::Disc(PhotonArt::MeteorFist) => 80,
             Self::Disc(PhotonArt::Sweep) => 120,
             Self::Disc(PhotonArt::RisingCleave) => 160,
             Self::Disc(PhotonArt::PiercingThrust) => 100,

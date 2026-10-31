@@ -1,4 +1,4 @@
-//! Owned item instances. One PA disc can be slotted into one owned sword at a time.
+//! Owned item instances. One PA disc can be slotted into one owned weapon at a time.
 use crate::shop::{StockItem, MAX_MESETA, STARTING_MESETA};
 use crate::weapon::{PhotonArt, WeaponKind, WeaponLoadout};
 
@@ -42,14 +42,14 @@ impl Default for Inventory {
             id: WeaponId(i as u32 + 1),
             loadout: WeaponLoadout {
                 kind,
-                photon_art: Some(PhotonArt::ALL[i]),
+                photon_art: Some(PhotonArt::SWORD[i]),
             },
         })
         .collect();
         Self {
             meseta: STARTING_MESETA,
             weapons,
-            discs: PhotonArt::ALL.to_vec(),
+            discs: PhotonArt::SWORD.to_vec(),
             equipped: WeaponId(1),
             next_id: 4,
         }
@@ -80,7 +80,10 @@ impl Inventory {
                 return Err("Invalid or duplicate saved weapon identifier.");
             }
             if let Some(art) = w.loadout.photon_art {
-                if !state.discs.contains(&art) || assigned.contains(&art) {
+                if !state.discs.contains(&art)
+                    || assigned.contains(&art)
+                    || !w.loadout.kind.accepts(art)
+                {
                     return Err("Invalid saved PA assignment.");
                 }
                 assigned.push(art);
@@ -198,6 +201,9 @@ impl Inventory {
         if art.is_some_and(|a| !self.discs.contains(&a)) {
             return Err("You do not own that PA disc.");
         }
+        if art.is_some_and(|a| !self.weapon(id).unwrap().loadout.kind.accepts(a)) {
+            return Err("That PA belongs to a different weapon class.");
+        }
         if let Some(art) = art {
             for weapon in &mut self.weapons {
                 if weapon.loadout.photon_art == Some(art) {
@@ -247,6 +253,36 @@ impl Inventory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn new_classes_can_be_bought_and_incompatible_disc_transfers_are_atomic() {
+        for (kind, art) in [
+            (WeaponKind::RecruitPartisan, PhotonArt::AssaultThrust),
+            (WeaponKind::RecruitKnuckles, PhotonArt::MeteorFist),
+        ] {
+            let mut bag = Inventory::default();
+            bag.buy(StockItem::Weapon(kind)).unwrap();
+            bag.buy(StockItem::Disc(art)).unwrap();
+            assert_eq!(
+                bag.meseta(),
+                STARTING_MESETA - StockItem::Weapon(kind).price() - StockItem::Disc(art).price()
+            );
+            bag.assign(WeaponId(4), Some(art)).unwrap();
+            bag.equip(WeaponId(4)).unwrap();
+            let before = bag.clone();
+            assert!(bag.assign(WeaponId(1), Some(art)).is_err());
+            assert!(bag.assign(WeaponId(4), Some(PhotonArt::Sweep)).is_err());
+            assert_eq!(bag, before);
+            assert_eq!(Inventory::from_state(bag.snapshot()).unwrap(), bag);
+            let mut invalid = bag.snapshot();
+            invalid.weapons[3].loadout.photon_art = Some(PhotonArt::Sweep);
+            invalid.weapons[0].loadout.photon_art = None;
+            assert!(Inventory::from_state(invalid).is_err());
+            bag.equip(WeaponId(1)).unwrap();
+            bag.sell_weapon(WeaponId(4)).unwrap();
+            assert!(bag.discs().contains(&art));
+            assert_eq!(bag.disc_owner(art), None);
+        }
+    }
     #[test]
     fn shop_failures_do_not_charge_or_remove_items() {
         let mut bag = Inventory::default();

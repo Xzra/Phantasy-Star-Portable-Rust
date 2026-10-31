@@ -40,6 +40,8 @@ fn kind_name(kind: WeaponKind) -> &'static str {
         WeaponKind::TrainingSword => "training_sword",
         WeaponKind::HunterSaber => "hunter_saber",
         WeaponKind::PhotonEdge => "photon_edge",
+        WeaponKind::RecruitPartisan => "recruit_partisan",
+        WeaponKind::RecruitKnuckles => "recruit_knuckles",
     }
 }
 fn parse_kind(name: &str) -> Result<WeaponKind, String> {
@@ -47,6 +49,8 @@ fn parse_kind(name: &str) -> Result<WeaponKind, String> {
         "training_sword" => Ok(WeaponKind::TrainingSword),
         "hunter_saber" => Ok(WeaponKind::HunterSaber),
         "photon_edge" => Ok(WeaponKind::PhotonEdge),
+        "recruit_partisan" => Ok(WeaponKind::RecruitPartisan),
+        "recruit_knuckles" => Ok(WeaponKind::RecruitKnuckles),
         _ => Err("Unknown saved weapon kind.".into()),
     }
 }
@@ -55,6 +59,8 @@ fn art_name(art: PhotonArt) -> &'static str {
         PhotonArt::Sweep => "sweep",
         PhotonArt::RisingCleave => "rising_cleave",
         PhotonArt::PiercingThrust => "piercing_thrust",
+        PhotonArt::AssaultThrust => "assault_thrust",
+        PhotonArt::MeteorFist => "meteor_fist",
     }
 }
 fn parse_art(name: &str) -> Result<PhotonArt, String> {
@@ -62,6 +68,8 @@ fn parse_art(name: &str) -> Result<PhotonArt, String> {
         "sweep" => Ok(PhotonArt::Sweep),
         "rising_cleave" => Ok(PhotonArt::RisingCleave),
         "piercing_thrust" => Ok(PhotonArt::PiercingThrust),
+        "assault_thrust" => Ok(PhotonArt::AssaultThrust),
+        "meteor_fist" => Ok(PhotonArt::MeteorFist),
         _ => Err("Unknown saved Photon Art.".into()),
     }
 }
@@ -338,6 +346,32 @@ mod tests {
             World::from_profile(p).unwrap().session().location(),
             psp_core::Location::Lobby
         );
+    }
+    #[test]
+    fn version_one_sword_saves_and_new_class_loadouts_round_trip() {
+        let legacy = World::default().profile();
+        assert_eq!(decode(&encode(&legacy).unwrap()).unwrap(), legacy);
+        let mut profile = legacy;
+        let mut bag = psp_core::inventory::Inventory::from_state(profile.inventory).unwrap();
+        for (kind, art) in [
+            (WeaponKind::RecruitPartisan, PhotonArt::AssaultThrust),
+            (WeaponKind::RecruitKnuckles, PhotonArt::MeteorFist),
+        ] {
+            let id = bag.grant_weapon(kind).unwrap();
+            bag.grant_disc(art).unwrap();
+            bag.assign(id, Some(art)).unwrap();
+            bag.equip(id).unwrap();
+        }
+        profile.inventory = bag.snapshot();
+        assert_eq!(decode(&encode(&profile).unwrap()).unwrap(), profile);
+        // Even well-formed JSON must reject cross-class slots.
+        let invalid = String::from_utf8(encode(&profile).unwrap())
+            .unwrap()
+            .replace(
+                "\"kind\": \"recruit_knuckles\"",
+                "\"kind\": \"recruit_partisan\"",
+            );
+        assert!(decode(invalid.as_bytes()).is_err());
     }
     #[test]
     fn malformed_future_oversized_and_unknown_items_are_rejected() {

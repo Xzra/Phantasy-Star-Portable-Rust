@@ -9,11 +9,11 @@ world and shows stock, item details, inventory space and your Meseta balance.
 - Click the clearly labeled Buy/Sell button or press Enter to trade.
 - Escape or **Leave shop** returns to play. Tab / I switches to inventory.
 
-Purchased swords appear as new inventory instances with an empty PA slot.
+Purchased weapons appear as new inventory instances with an empty PA slot.
 Use Tab / I to equip a weapon and assign a disc. Each PA is unique: buying an
 already-owned disc is rejected without charging money. Selling a PA removes
-it from its slot; selling a sword returns its slotted PA to the bag. The currently
-equipped sword cannot be sold: equip another one first.
+it from its slot; selling a weapon returns its slotted PA to the bag. The currently
+equipped weapon cannot be sold: equip another one first.
 
 ## Currency and stock
 
@@ -30,6 +30,10 @@ extra money. Repeat trials to earn more. Wallet capacity is 999,999 Meseta.
 | Photon Sweep disc | 120 | 60 |
 | Rising Cleave disc | 160 | 80 |
 | Piercing Thrust disc | 100 | 50 |
+| Recruit Partisan | 180 | 90 |
+| Assault Thrust disc (Partisan) | 100 | 50 |
+| Recruit Knuckles | 160 | 80 |
+| Meteor Fist disc (Knuckles) | 80 | 40 |
 
 Trades require a living Hunter within 2.7 units of the counter in the lobby.
 Ownership, money, bag capacity, equipped-weapon protection and wallet limits are

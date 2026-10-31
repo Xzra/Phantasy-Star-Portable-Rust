@@ -337,7 +337,7 @@ pub fn hud(
         format!("{} / {:.0} PP", a.spec().short_name, a.spec().pp)
     });
     for (i, (key, label, ready)) in [
-        ("LMB / J", "SWORD", true),
+        ("LMB / J", world.weapon().kind.class().name(), true),
         (
             "RMB / F",
             art_label.as_str(),

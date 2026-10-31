@@ -24,9 +24,11 @@ cargo run --features viewer --bin phantasy-star -- /path/to/dagan.ice
 ```
 
 WASD moves, Shift sprints, Space jumps, Q locks on, and X steps. Left mouse or
-J attacks; RMB or F uses the sword's equipped Photon Art. Tab or I opens the
+J attacks; RMB or F uses the weapon's equipped Photon Art. Tab or I opens the
 inventory: select a weapon, E equips it, and 1/2/3 assigns an owned PA disc.
-Three starter swords remember their own PA slots; discs move between weapons.
+Three starter swords remember their own PA slots; discs move between compatible weapons.
+Mira also sells Partisans (long, narrow thrusts) and Knuckles (fast close-range
+punches), each with an original mesh, three-hit combo and class-specific PA.
 H uses a recovery charge. See [inventory controls](docs/inventory.md).
 Mira runs the gold-lit equipment counter on the right side of the lobby. Walk
 up and press E to buy or sell weapons and PA discs. Start with 300 Meseta;
@@ -53,7 +55,8 @@ motion packs use basic joint animation; the standalone Forest Crawler is also
 rigged and animated. The enemy HUD shows which motion set is active.
 
 This is a Classic-inspired prototype with original balance. Player/field art
-remains provisional; the inventory contains three starter swords and PA discs.
+remains provisional; three starter swords and PA discs are provided, with
+Partisans, Knuckles and their PA discs available in the lobby shop.
 Item drops, simultaneous multi-enemy combat and multiplayer are
 future work. See [combat feel](docs/combat-feel.md), [solo gameplay](docs/solo-game.md)
 and [rigging and animation](docs/animation.md).

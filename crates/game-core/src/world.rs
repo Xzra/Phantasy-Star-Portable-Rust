@@ -1,7 +1,7 @@
 //! Solo world simulation. Input, collision, interaction ranges and attack cadence
 //! live here so presentation cannot bypass the gameplay rules.
 use crate::inventory::{Inventory, WeaponId};
-use crate::weapon::{PhotonArt, WeaponLoadout};
+use crate::weapon::{PhotonArt, WeaponClass, WeaponLoadout};
 use crate::{Command, Event, Location, QuestState, Session};
 
 pub const FIXED_STEP: f32 = 1.0 / 60.0;
@@ -101,6 +101,8 @@ pub struct Attack {
     pub art: Option<PhotonArt>,
     /// Weapon power captured at the start, including the current weapon's bonus.
     pub power: u32,
+    /// Class captured with power, keeping timing and reach stable during equipment changes.
+    pub class: WeaponClass,
     hit: bool,
 }
 impl Attack {
@@ -547,7 +549,7 @@ impl World {
         let duration = if photon {
             art.unwrap().spec().duration
         } else {
-            [0.5, 0.52, 0.68][self.combo_stage as usize - 1]
+            self.weapon().kind.class().attack(self.combo_stage).duration
         };
         self.attack = Some(Attack {
             stage: self.combo_stage,
@@ -557,6 +559,7 @@ impl World {
             photon,
             art,
             power: self.weapon_power(),
+            class: self.weapon().kind.class(),
             hit: false,
         });
         if photon {
@@ -859,7 +862,7 @@ impl World {
             let hit_at = if attack.photon {
                 attack.art.unwrap().spec().hit_at
             } else {
-                [0.18, 0.2, 0.28][attack.stage as usize - 1]
+                attack.class.attack(attack.stage).hit_at
             };
             if !attack.hit && attack.elapsed >= hit_at {
                 attack.hit = true;
@@ -868,15 +871,22 @@ impl World {
                 if self.session.location() == Location::TrainingField
                     && self.session.quest() == QuestState::Active
                     && self.position.distance(self.enemy_position)
-                        <= attack.art.map_or(ATTACK_RANGE, |a| a.spec().range)
-                    && alignment >= attack.art.map_or(0.35, |a| a.spec().alignment)
+                        <= attack
+                            .art
+                            .map_or(attack.class.attack(attack.stage).range, |a| a.spec().range)
+                    && alignment
+                        >= attack
+                            .art
+                            .map_or(attack.class.attack(attack.stage).alignment, |a| {
+                                a.spec().alignment
+                            })
                     && self.height < 1.6
                 {
                     let base = attack.power;
                     let power = if attack.photon {
                         base * attack.art.unwrap().spec().power_percent / 100
                     } else {
-                        base * [100, 135, 185][attack.stage as usize - 1] / 100
+                        base * attack.class.attack(attack.stage).power_percent / 100
                     };
                     let power = if attack.perfect {
                         power * 130 / 100
@@ -1298,8 +1308,85 @@ mod tests {
     }
 
     #[test]
+    fn weapon_classes_enforce_reach_facing_and_capture_active_swing_rules() {
+        use crate::weapon::WeaponKind;
+        for kind in [WeaponKind::RecruitPartisan, WeaponKind::RecruitKnuckles] {
+            let spec = kind.class().attack(1);
+            for (distance, facing, hit) in [
+                (spec.range - 0.05, std::f32::consts::PI, true),
+                (spec.range + 0.05, std::f32::consts::PI, false),
+                (spec.range - 0.05, 0.0, false),
+            ] {
+                let mut w = close_trial();
+                let id = w.inventory.grant_weapon(kind).unwrap();
+                w.equip_weapon(id).unwrap();
+                w.position.z = ENEMY.z + distance;
+                w.facing = facing;
+                w.step(
+                    Input {
+                        attack: true,
+                        ..Input::default()
+                    },
+                    FIXED_STEP,
+                );
+                assert_eq!(w.attack.unwrap().duration, spec.duration);
+                w.equip_weapon(WeaponId(1)).unwrap();
+                assert_eq!(w.attack.unwrap().class, kind.class());
+                ticks(&mut w, 22, Input::default());
+                assert_eq!(
+                    w.session.enemy_health(),
+                    ENEMY_MAX_HEALTH
+                        - if hit {
+                            14 * spec.power_percent / 100
+                        } else {
+                            0
+                        }
+                );
+            }
+        }
+    }
+    #[test]
+    fn new_class_arts_charge_once_hit_once_and_reject_low_pp() {
+        use crate::weapon::WeaponKind;
+        for (kind, art) in [
+            (WeaponKind::RecruitPartisan, PhotonArt::AssaultThrust),
+            (WeaponKind::RecruitKnuckles, PhotonArt::MeteorFist),
+        ] {
+            let mut w = close_trial();
+            w.position.z = ENEMY.z + 1.8;
+            w.facing = std::f32::consts::PI;
+            let id = w.inventory.grant_weapon(kind).unwrap();
+            w.inventory.grant_disc(art).unwrap();
+            w.assign_photon_art(id, Some(art)).unwrap();
+            w.equip_weapon(id).unwrap();
+            w.pp = art.spec().pp - 1.0;
+            w.step(
+                Input {
+                    photon_art: true,
+                    ..Input::default()
+                },
+                FIXED_STEP,
+            );
+            assert!(w.attack.is_none());
+            w.pp = 100.0;
+            w.step(
+                Input {
+                    photon_art: true,
+                    ..Input::default()
+                },
+                FIXED_STEP,
+            );
+            assert_eq!(w.pp, 100.0 - art.spec().pp);
+            ticks(&mut w, 28, Input::default());
+            let hp = ENEMY_MAX_HEALTH - 14 * art.spec().power_percent / 100;
+            assert_eq!(w.session.enemy_health(), hp);
+            ticks(&mut w, 28, Input::default());
+            assert_eq!(w.session.enemy_health(), hp);
+        }
+    }
+    #[test]
     fn equipped_arts_have_distinct_costs_damage_and_contact_times() {
-        for art in PhotonArt::ALL {
+        for art in PhotonArt::SWORD {
             let mut w = close_trial();
             w.equip_photon_art(Some(art)).unwrap();
             let spec = art.spec();
@@ -1394,7 +1481,7 @@ mod tests {
 
     #[test]
     fn each_equipped_art_rejects_insufficient_pp_without_starting_an_attack() {
-        for art in PhotonArt::ALL {
+        for art in PhotonArt::SWORD {
             let mut w = close_trial();
             w.equip_photon_art(Some(art)).unwrap();
             w.pp = art.spec().pp - 1.0;

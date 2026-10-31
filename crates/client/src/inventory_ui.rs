@@ -183,13 +183,31 @@ impl InventoryMenu {
         let right = x + left_width + 12.0;
         let right_width = width - left_width - 24.0;
         draw_text(
-            "OWNED PA DISCS / ASSIGN TO SELECTED WEAPON",
+            format!(
+                "{} / COMPATIBLE OWNED PA DISCS",
+                selected.loadout.kind.class().name()
+            ),
             right,
             y + 80.0,
             17.0,
             WHITE,
         );
-        let discs = world.inventory().discs().to_vec();
+        let discs: Vec<_> = world
+            .inventory()
+            .discs()
+            .iter()
+            .copied()
+            .filter(|a| selected.loadout.kind.accepts(*a))
+            .collect();
+        if discs.is_empty() {
+            draw_text(
+                "Buy a compatible PA disc from Mira in the lobby.",
+                right,
+                y + 118.0,
+                17.0,
+                LIGHTGRAY,
+            );
+        }
         let keys = [KeyCode::Key1, KeyCode::Key2, KeyCode::Key3];
         for (i, art) in discs.into_iter().enumerate() {
             let spec = art.spec();

@@ -26,6 +26,11 @@ unknown schema versions, unknown items, invalid level/XP, excessive money,
 duplicate IDs/discs, impossible assignments, missing equipped weapons and bags
 over 32 items. Input is bounded to 64 KiB.
 
+Version 1 sword-only profiles remain valid. Partisans, Knuckles and their class
+PAs use new stable item names in the same format; incompatible PA assignments
+are rejected. Returning to an older executable after buying new items may
+reject the unfamiliar items, preserving the profile instead of overwriting it.
+
 Invalid or unreadable existing saves are preserved and saving is disabled for
 that run. The game opens paused with a save-unavailable status. Changes detected
 in the save file before a subsequent write also stop saving. Write failures are

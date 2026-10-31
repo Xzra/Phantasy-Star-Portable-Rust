@@ -205,7 +205,7 @@ impl ShopMenu {
             match item {
                 StockItem::Weapon(w) => {
                     draw_text(
-                        format!("SWORD / ATK +{}", w.attack_bonus()),
+                        format!("{} / ATK +{}", w.class().name(), w.attack_bonus()),
                         right,
                         y + 173.,
                         18.,
@@ -229,7 +229,7 @@ impl ShopMenu {
                         GOLD,
                     );
                     draw_text(
-                        "Assign this disc to a sword in inventory.",
+                        format!("Assign to {} weapons in inventory.", a.class().name()),
                         right,
                         y + 204.,
                         15.,
