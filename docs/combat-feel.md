@@ -1,0 +1,132 @@
+# Classic-inspired combat pass
+
+The first training build showed models and animation, but its stationary enemy,
+immediate damage and repeated slash did not create an action-game rhythm. This
+pass focuses on responsive combat, a camera that holds a target, and clear
+feedback. It is a prototype interpretation, with original tuning and art.
+
+The reference is SEGA's [Classic PSO2 basic combat guide](https://pso2.jp/players/manual/pso2/battle/action/basic/):
+timed follow-up attacks, lock-on, normal-hit PP recovery, photon arts, jumping,
+and evasion. It is not an exact reconstruction of Classic or NGS mechanics.
+
+## Controls
+
+| Input | Action |
+| --- | --- |
+| WASD | Camera-relative movement; strafe while locked on |
+| Shift | Sprint |
+| Left mouse / J | Normal sword combo; holding repeats untimed attacks |
+| Q | Toggle lock-on to the current enemy |
+| X + movement | Dodge step; X without direction steps backward |
+| Space | Jump; attacks can be used in the air |
+| RMB / F | Activate the sword's equipped Photon Art |
+| Tab / I | Inventory: select weapon, E equips, 1/2/3 assigns a PA, 0 removes it |
+| E | Terminal, return pad, or retry after defeat |
+| MMB drag / arrows / wheel | Orbit / zoom camera |
+| Escape | Pause, new session, quit |
+
+## Combat rules
+
+Three normal swings have distinct clips, durations (0.50 / 0.52 / 0.68 seconds),
+and powers (12 / 16 / 22 at level 1). Damage is evaluated once at the swing's
+contact time (0.18 / 0.20 / 0.28 seconds), using range and facing. Missing does not
+deal damage. Input can buffer the next swing. A fresh press during the orange
+ring window (64–88% of the current normal swing) makes the next swing a Just
+Attack with 30% more power, rounded down. Holding does not grant this bonus.
+The combo resets after a 0.4-second gap after recovery and cycles after stage 3.
+
+PP starts at 100, recovers at 5 per second while not attacking, and normal hits
+restore 8 PP. Photon Sweep costs 35 PP when it starts, deals 36 damage at level 1
+on contact, and has a 3.5-unit range. The normal range is 2.6. The third normal
+hit and connected Photon Arts briefly stagger the enemy. Dodge cancels an attack without a PP
+refund. Input during hit-stop is retained for the next simulation tick.
+
+Player and enemy movement use the same 1.48-unit contact separation. A lunge
+cannot enter the smaller gap that previously trapped the player. If the actors
+already overlap, steps that separate them or slide tangentially remain possible;
+moving deeper through the other actor is rejected. Walls, props and dodge
+substeps still constrain movement, including while escaping contact.
+
+## Weapon Photon Art slot
+
+Each owned sword has one equippable art. Open Tab / I (or Inventory in the pause
+menu), select a weapon, and assign an owned PA disc. E equips the selected sword.
+The action palette
+shows its name, PP cost and readiness. RMB uses a fresh press; holding it does
+not repeatedly spend PP. F is an equivalent keyboard binding. Camera drag uses
+MMB so activating an art does not move the camera. Equipment menus pause combat.
+
+| Art | PP | Training Sword level 1 damage | Range | Contact / duration | Aim |
+| --- | --- | --- | --- | --- | --- |
+| Photon Sweep | 35 | 36 | 3.5 | 0.34 / 0.85 s | All around the player |
+| Rising Cleave | 30 | 48 | 2.8 | 0.45 / 1.00 s | Forward cone |
+| Piercing Thrust | 20 | 24 | 4.2 | 0.22 / 0.58 s | Narrow forward cone |
+
+An empty slot or insufficient PP produces a message without starting an art.
+PP is charged once when the attack begins. A swing captures its art at that
+moment; swapping slots during a paused swing changes subsequent attacks,
+without changing the current swing or charging PP again. Equipment changes
+clear buffered art input. The slot survives retries and extraction/redeployment;
+New session restores the starter weapons and discs. Choices are session-only
+until saving is added. See [inventory](inventory.md) for ownership and transfer rules.
+
+The step travels for 0.23 seconds with a 0.65-second cooldown. Its early portion
+avoids attacks; movement still collides with props, map boundaries and the enemy.
+Jumping uses simple vertical physics on a flat floor; this is not platforming or
+aerial enemy navigation. Brief hit-stop, attached sword trails, damage numbers,
+and slight camera shake support impact feedback.
+
+The first-wave enemy has 144 HP and approaches at 2.8 units/second. At close range it commits
+to a direction, telegraphs for 0.65 seconds, lunges, checks its attack arc once,
+and recovers for 0.85 seconds. A connected strike deals 18 damage; hitting the
+enemy no longer causes automatic counter damage. Its native movement, attack,
+damage and death clips follow these simulation states. The ground wedge shows
+the committed direction. This is one local steering enemy, without a navigation
+mesh or multiple targets. It can get held up by complex prop arrangements.
+
+Defeat stops player actions. E restarts the encounter with full health, PP and
+enemy HP, without awarding XP. Victory awards 100 XP once per trial, raises the Hunter to
+level 2, and unlocks the return pad. Progress remains session-only.
+
+## Presentation and validation
+
+The field is an original forest clearing with grass-colored ground, rocks and
+distant trees. The Hunter has beveled armor geometry on the original rig. The
+compact HUD separates HP/PP, enemy health, objective, lock-on, and action palette.
+This is still placeholder player/environment art, not imported PSO2 field or
+player-character assets.
+
+Core tests cover contact timing, one hit per swing, range/facing, timed combos,
+PP, dodge/cooldown, collision, chase/telegraph/defeat/retry, jumping and rewards.
+The graphical smoke driver follows the moving enemy, locks on, uses normal and
+photon attacks, dodges windups, and returns to the lobby. It uses the same input
+and simulation paths as player controls. Run it as described in
+[solo gameplay](solo-game.md), with or without the optional Dagan archives.
+
+## Three-wave trial and recovery
+
+The trial now advances through three sequential enemies: 144, 168 and 192 HP.
+Each clear has a two-second break before the next spawn and restores 25 PP when
+the next wave begins. Spawns choose a clear position at least three units from
+the Hunter. The final enemy approaches at 3.4 units/second, telegraphs for 0.5
+seconds, lunges faster and deals 22 damage. Earlier-wave telegraphs remain 0.65
+seconds; wave 2 deals 20 damage. This is a sequence of single enemies, not
+simultaneous multi-target combat.
+
+H instantly uses one of three recovery charges for up to 40 HP. Full health,
+no charges, defeat or being outside an active trial prevents use without wasting
+a charge. Healing cancels the current attack. Charges refill on deployment or
+retry. A hit flashes the screen edge, and successful healing shows a green number.
+
+The final clear displays elapsed simulation time, defeats, connected timed hits,
+evades, damage taken and charges used. The original prototype score is
+`max(0, 1000 + timed_hits*80 + evades*60 - damage*5 - heals*100 - seconds*5)`.
+Ranks are S at 900, A at 700, B at 450, otherwise C. This is local practice
+feedback, not PSO2's scoring formula. Empty swings cannot count as timed hits.
+The timer stops at final victory; XP is issued only once for the whole trial.
+
+After returning to the lobby, E at the mission terminal deploys again while
+preserving the current session's level and XP. Defeat/retry restarts at wave 1
+with full health, PP and recovery charges, and clears the trial statistics.
+The current run's results are cleared on extraction or a new deployment. There
+is still no disk save or cross-session progression.

@@ -1,0 +1,138 @@
+Phantasy Star Portable Rust - Windows x64 solo game preview
+
+PLAY
+Double-click phantasy-star.exe to enter the orbital lobby. No game installation
+is needed. Follow the blue lights to the mission terminal and press E. Approach
+and face the training target, then attack. Defeat it to reach level 2, follow the
+yellow lights to the return pad, and press E to return to the lobby.
+
+WASD: move     Shift: sprint     Space: jump     Q: lock on
+Left mouse / J: sword combo     X: step          RMB / F: equipped Photon Art
+H: recovery (3 charges, up to 40 HP)     E: interact / retry after defeat
+Middle mouse drag / arrows: orbit camera     Wheel: zoom     Escape: pause
+Tab / I: inventory. Click a weapon or Up/Down selects it; E equips it.
+Click a PA or use 1/2/3 to slot its disc on the selected weapon; 0 removes it.
+Tab / I / Escape / Enter closes the inventory. Combat pauses while it is open.
+A white/cyan cursor appears above inventory and pause menus for mouse selection.
+
+LOBBY SHOP
+Mira runs the gold-lit counter on the right side of the lobby. Approach and E
+opens her shop. Click Buy stock / Sell items, select an item and click the labeled
+trade button or press Enter. Escape leaves; Tab / I opens inventory.
+New sessions start with 300 Meseta; clearing all three trial waves awards 300.
+Weapon prices: Training Sword 60, Hunter Saber 180, Photon Edge 320.
+PA prices: Sweep 120, Cleave 160, Thrust 100. Selling returns half the buy price.
+Purchased weapons have empty PA slots. Selling a sword returns its PA to the
+bag; selling a PA clears its slot. Equipped weapons cannot be sold. Duplicate
+owned PA discs, full bags and insufficient funds are rejected without a charge.
+Currency and purchases last for the current session; New session resets them.
+
+PRESENTATION
+The lobby has segmented deck plates and structural scenery. The forest has
+faceted canopies, low foliage and a continuous dirt clearing. Interface panels
+use a bundled Liberation Sans font; its license is in THIRD_PARTY_NOTICES.md
+and assets/fonts/OFL.txt. No installed fonts or game assets are required.
+
+INVENTORY
+Three owned swords start in your 32-item bag: Training Sword (ATK +0, cyan),
+Hunter Saber (ATK +3, gold), and Photon Edge (ATK +6, violet). Each remembers its
+own PA slot, initially Sweep, Cleave, and Thrust respectively. All three PA discs
+are owned. Assigning a disc moves it from the previous weapon; displaced or
+removed discs return to the bag. The HUD shows the equipped weapon and attack
+power. Gear bonuses affect normal attacks and Photon Arts.
+
+PHOTON ARTS
+Photon Sweep: 35 PP, spinning cut, hits around you.
+Rising Cleave: 30 PP, heavy upward cut, strongest close-range hit.
+Piercing Thrust: 20 PP, quick narrow attack, longest reach.
+Equip one art to each sword's RMB slot. The HUD shows the active weapon's art
+and PP cost. An empty slot or insufficient PP cannot activate an art. These are
+original prototype skills. Equipment choices last for this session.
+
+Time a fresh normal-attack press when the ring turns orange for a stronger
+follow-up. Holding repeats untimed attacks. Normal hits restore PP. Avoid the
+enemy's ground wedge: it chases, winds up, lunges and recovers. Defeat allows E
+to retry from wave 1. Clear three waves for XP and a scored results panel.
+The final enemy is faster. Two-second wave breaks restore 25 PP at the next spawn.
+Return through the pad, then E at the lobby terminal deploys another trial while
+keeping your level for the current session.
+
+For native Dagan models and motion, extract the ZIP and run Play-Dagan.cmd.
+It downloads/verifies both archives described below and starts the game. The
+standalone EXE instead works with the original Hunter and animated Forest Crawler.
+
+The field is an original forest clearing. The Hunter has beveled armor and a
+17-bone rig with distinct combo and photon clips. F2 toggles bones. Player and
+field art remain placeholders; this is a Classic-inspired prototype with
+original balance, not an exact PSO2 recreation. Progress is session-only.
+Inventory lasts for the session; New session restores the starter bag. Item drops,
+multiple enemies, saving across launches and multiplayer are not implemented yet.
+
+MODEL VIEWER
+Double-click model-viewer.exe. The original sample crystal is embedded; no game
+installation, Rust toolchain, or separate sample files are needed to view it.
+A working graphics driver with OpenGL support is required.
+
+VIEW A REAL PSO2 MODEL
+Extract the ZIP to a writable folder and double-click Load-Dagan.cmd. It downloads
+the verified Classic Dagan model archive (about 706 KB) from the official PSO2 patch
+server into local\dagan.ice, checks its SHA-256, and opens it in the viewer.
+The helper also downloads/verifies dagan-motion.ice (about 1.87 MiB) for native
+animation. Without that motion archive, supported Dagan rigs use basic
+procedural joint animations rather than standing still. The enemy HUD shows
+which motion set is active. Internet access is needed for the initial download. The model is not bundled
+with the release. If the archived server URL is retired, open your own supported
+model file instead. Existing cached data is reused only if its checksum matches.
+
+VIEWER CONTROLS
+Arrow keys: orbit camera
+Mouse wheel: zoom
+Space: toggle rotation
+W: toggle wireframe
+T: toggle an explicitly supplied texture
+G: toggle ground grid
+R: reset camera
+L: reload current OBJ file
+Escape: quit
+A: play/pause animation    N: next clip    B: bones
+Drop an OBJ, AQP/AQO, or supported ICE v4 file onto the window to open it.
+
+OPEN YOUR OWN MODEL
+In PowerShell, from the extracted ZIP directory:
+  .\model-viewer.exe "C:\path\to\model.obj"
+  .\model-viewer.exe "C:\path\to\model.obj" --texture "C:\path\to\diffuse.png"
+  .\model-viewer.exe "C:\path\to\model.ice"
+  .\model-viewer.exe "C:\path\to\model.aqp" --texture "C:\path\to\diffuse.dds"
+
+Companion MTL files supply diffuse RGB colors. Materials and textures must be
+available locally. Automatic MTL texture maps are not supported. Native Classic AQN/AQM rigging and
+animation are supported; see the repository animation guide for scope.
+The optional texture above applies one image to the whole model.
+
+HEADLESS TOOLS (included in ZIP)
+  .\psp-client.exe inspect assets\models\training-crystal.obj
+  .\psp-client.exe motion-list local\dagan.ice local\dagan-motion.ice
+  .\psp-client.exe demo
+  .\psp-client.exe catalog "C:\path\to\pso2_bin\data" 100000
+  .\psp-client.exe asset-search "C:\path\to\itemData.json" "Frontier Wing" --classic
+  .\psp-client.exe ice-list "C:\path\to\plaintext-v4.ice"
+
+SCOPE
+This is an early solo training prototype plus a separate model viewer.
+The viewer opens OBJ and limited Classic PSO2 Aqua geometry (types 0xC2A/0xC31),
+including the first model/LOD in an AQP package. ICE v4 Blowfish encryption and
+PRS compression are supported. Other ICE versions, Oodle, NGS/Nova geometry,
+additive motion, animation inheritance flags, and full game materials are not
+supported. Ordinary Classic skeletal motion is supported. A matching primary
+diffuse DDS texture inside an ICE archive is selected automatically; secondary
+materials and game shaders are simplified. The headless demo remains available separately. No proprietary game assets are included.
+
+Source and development notes:
+https://github.com/Xzra/Phantasy-Star-Portable-Rust/tree/feat/initial-framework
+
+MONSTER ANIMATION
+The Forest Crawler has original rigged scuttle, windup, strike, recoil and death
+motion without any downloads. Dagan prefers its native motion pack, and falls
+back to basic bone animation if the pack is missing. Run Play-Dagan.cmd from
+the extracted ZIP for the full native set. The game checks local caches next
+to the executable as well as the launch directory, supporting desktop shortcuts.

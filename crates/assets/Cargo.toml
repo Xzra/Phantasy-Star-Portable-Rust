@@ -1,0 +1,12 @@
+[package]
+name = "psp-assets"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+ages-prs = "0.1"
+blowfish = "0.9"
+crc32fast = "1"
+glam = "0.27"
