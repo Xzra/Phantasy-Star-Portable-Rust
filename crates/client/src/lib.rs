@@ -10,3 +10,9 @@ pub mod animation;
 
 #[cfg(feature = "viewer")]
 pub mod combat_ui;
+
+pub mod asset_paths;
+#[cfg(feature = "viewer")]
+pub mod monster;
+#[cfg(feature = "viewer")]
+mod rig_geometry;
