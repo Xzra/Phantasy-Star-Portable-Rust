@@ -58,8 +58,14 @@ cargo run --features viewer --bin model-viewer -- local/dagan.ice --motions loca
 cargo run --bin psp-client -- motion-list local/dagan.ice local/dagan-motion.ice
 ```
 
-The game also finds `dagan-motion.ice` next to the selected model. With no motion
-archive it keeps the static projection; the Hunter remains animated. The viewer
+The game finds `dagan-motion.ice` next to the selected model, in the executable's
+`local/` cache, or in the working directory's known cache locations. This also
+works when a shortcut launches the executable from a different directory.
+With no motion archive, supported Dagan rigs now use original procedural joint
+poses for idle, scuttling, windup, strike, recovery, recoil and collapse. The
+fallback is basic motion, not extracted PSO2 keyframes. No static bind-pose fallback
+is silently presented as an animated monster. The HUD indicates the active motion
+source and points to `Play-Dagan.cmd` when the full set is missing. The viewer
 accepts explicit archives and allows cycling through all supported clips.
 `motion-list` samples four points of every clip, skins the actual model, and
 rejects non-finite results. For a reproducible viewer capture, set
@@ -82,3 +88,18 @@ clips with parent-before-child AQN nodes. Additive clips, inheritance flags,
 retargeting, IK, animation events, packed/NGS vertices, salon scaling rules,
 full materials and GPU skinning remain future work. An imported PSO2 player
 character is not included; the controllable Hunter is original.
+
+## Original creature without downloads
+
+The standalone game now includes a 19-bone Forest Crawler with four articulated
+legs, body, head, antennae and a core. Its original beveled mesh and joint poses
+use the same skinning path as Dagan. It replaces the floating, bobbing placeholder
+drone. Its legs scuttle, the body crouches during windup, extends on strike,
+recoils from hits, and curls/rolls on death. Death stays visible for 1.25 seconds
+even when no native motion archive exists. Pausing freezes the animation.
+
+Procedural poses are sampled from bind data every frame, without accumulating
+vertex deformation. Locomotion follows actual travel, so blocked movement does
+not keep playing a walking cycle. Native animation remains preferred per clip.
+Tests verify action-state deformation of weighted vertices, finite/repeatable
+poses, fallback death duration and discovery from a separate launch directory.

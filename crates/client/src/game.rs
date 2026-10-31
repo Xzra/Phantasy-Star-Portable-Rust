@@ -1,8 +1,10 @@
 use macroquad::prelude::*;
 use psp_client::{
     animation::ProjectionMotion,
+    asset_paths,
     combat_ui::{hud, Feedback},
     hunter::Hunter,
+    monster,
     scene::{capture_frame, Scene},
 };
 use psp_core::{
@@ -11,7 +13,7 @@ use psp_core::{
     },
     Event, Location, QuestState,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const INK: Color = Color::new(0.035, 0.065, 0.11, 1.0);
 const ACCENT: Color = Color::new(0.15, 0.85, 0.95, 1.0);
@@ -417,27 +419,8 @@ fn draw_enemy(world: &World, model: Option<&Scene>, hit_flash: f32, death_visibl
     }
     if let Some(model) = model {
         model.draw(true);
-    } else {
-        let bob = (world.time() * 2.0).sin() * 0.1;
-        draw_sphere(
-            point(world.enemy_position(), 1.1 + bob),
-            0.65,
-            None,
-            Color::new(0.18, 0.24, 0.32, 1.0),
-        );
-        draw_cube(
-            point(world.enemy_position(), 1.1 + bob),
-            vec3(1.7, 0.22, 0.35),
-            None,
-            ORANGE,
-        );
-        draw_sphere(
-            point(world.enemy_position(), 1.15 + bob) + vec3(0.0, 0.0, 0.55),
-            0.18,
-            None,
-            RED,
-        );
     }
+
     if hit_flash > 0.0 {
         for i in 0..10 {
             let angle = i as f32 * std::f32::consts::TAU / 10.0;
@@ -478,40 +461,41 @@ async fn main() {
     let mut hunter = Hunter::default();
     let mut bones = false;
     let mut feedback = Feedback::default();
-    let candidate = std::env::args().nth(1).or_else(|| {
-        ["local/dagan.ice", "local/models/dagan/dagan.ice"]
-            .into_iter()
-            .find(|path| Path::new(path).is_file())
-            .map(str::to_owned)
-    });
-    let mut projection =
-        candidate
-            .as_ref()
-            .and_then(|path| match Scene::load(Some(Path::new(path)), None) {
-                Ok(scene) => Some(scene),
-                Err(error) => {
-                    eprintln!("Optional projection unavailable: {error}");
-                    None
-                }
-            });
+    let executable_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_default();
+    let working_dir = std::env::current_dir().unwrap_or_default();
+    let candidate = std::env::args_os()
+        .nth(1)
+        .map(PathBuf::from)
+        .or_else(|| asset_paths::model(&executable_dir, &working_dir));
+    let imported = candidate
+        .as_ref()
+        .and_then(|path| match Scene::load(Some(path), None) {
+            Ok(scene) => Some(scene),
+            Err(error) => {
+                eprintln!("Optional monster unavailable: {error}");
+                None
+            }
+        });
+    let external_model = imported.is_some();
+    let mut projection = Some(imported.unwrap_or_else(monster::crawler));
     if let Some(scene) = &mut projection {
         scene.place_on_ground(point(world.enemy_position(), 0.0), 1.3);
     }
-    let motion_path = std::env::args()
-        .nth(2)
-        .map(std::path::PathBuf::from)
-        .or_else(|| {
-            candidate
-                .as_ref()
-                .map(|path| Path::new(path).with_file_name("dagan-motion.ice"))
-                .filter(|p| p.is_file())
-        });
+    let motion_path = std::env::args_os().nth(2).map(PathBuf::from).or_else(|| {
+        candidate
+            .as_ref()
+            .and_then(|path| asset_paths::motions(path, &executable_dir, &working_dir))
+    });
     let mut motion = ProjectionMotion::new(
         projection
             .as_ref()
             .and_then(|scene| {
                 motion_path
                     .as_ref()
+                    .filter(|_| external_model)
                     .and_then(|path| match scene.load_motions(path) {
                         Ok(library) => {
                             for warning in library.warnings {
@@ -782,7 +766,16 @@ async fn main() {
         feedback.draw_world(&world);
         set_default_camera();
         feedback.draw_screen(&world, &camera);
-        hud(&world, &message, message_time, projection.is_some());
+        hud(
+            &world,
+            &message,
+            message_time,
+            external_model,
+            motion.status(
+                external_model,
+                projection.as_ref().is_some_and(|s| s.rig.is_some()),
+            ),
+        );
         if paused {
             draw_rectangle(
                 0.0,
@@ -848,6 +841,7 @@ async fn main() {
                     && world.session().location() == Location::TrainingField
                     && world.session().quest() == QuestState::Complete
                     && motion.death_visible(world.time())
+                    && motion.death_age(world.time()).is_some_and(|age| age >= 0.6)
                 {
                     captured_death = true;
                     Some("death")

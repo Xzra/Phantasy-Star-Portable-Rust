@@ -147,7 +147,13 @@ fn text_right(text: &str, right: f32, y: f32, size: u16, color: Color) {
         color,
     );
 }
-pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
+pub fn hud(
+    world: &World,
+    message: &str,
+    message_time: f32,
+    projection: bool,
+    monster_motion: &str,
+) {
     let w = screen_width();
     let h = screen_height();
     if world.hurt() {
@@ -185,7 +191,7 @@ pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
                     "DAGAN / COMBAT TRIAL"
                 }
             } else {
-                "COMBAT DRONE"
+                "FOREST CRAWLER"
             },
             30.0,
             90.0,
@@ -215,6 +221,19 @@ pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
             120.0,
             15.0,
             LIGHTGRAY,
+        );
+    }
+    if world.session().location() == Location::TrainingField && world.session().enemy_health() > 0 {
+        draw_text(
+            monster_motion,
+            22.0,
+            141.0,
+            15.0,
+            if monster_motion.starts_with("Basic") {
+                ORANGE
+            } else {
+                CYAN
+            },
         );
     }
     let lobby = world.session().location() == Location::Lobby;

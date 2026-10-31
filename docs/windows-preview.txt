@@ -21,7 +21,7 @@ keeping your level for the current session.
 
 For native Dagan models and motion, extract the ZIP and run Play-Dagan.cmd.
 It downloads/verifies both archives described below and starts the game. The
-standalone EXE instead works with the original Hunter and fallback enemy.
+standalone EXE instead works with the original Hunter and animated Forest Crawler.
 
 The field is an original forest clearing. The Hunter has beveled armor and a
 17-bone rig with distinct combo and photon clips. F2 toggles bones. Player and
@@ -39,7 +39,9 @@ Extract the ZIP to a writable folder and double-click Load-Dagan.cmd. It downloa
 the verified Classic Dagan model archive (about 706 KB) from the official PSO2 patch
 server into local\dagan.ice, checks its SHA-256, and opens it in the viewer.
 The helper also downloads/verifies dagan-motion.ice (about 1.87 MiB) for native
-animation. Internet access is needed for the initial download. The model is not bundled
+animation. Without that motion archive, supported Dagan rigs use basic
+procedural joint animations rather than standing still. The enemy HUD shows
+which motion set is active. Internet access is needed for the initial download. The model is not bundled
 with the release. If the archived server URL is retired, open your own supported
 model file instead. Existing cached data is reused only if its checksum matches.
 
@@ -88,3 +90,10 @@ materials and game shaders are simplified. The headless demo remains available s
 
 Source and development notes:
 https://github.com/Xzra/Phantasy-Star-Portable-Rust/tree/feat/initial-framework
+
+MONSTER ANIMATION
+The Forest Crawler has original rigged scuttle, windup, strike, recoil and death
+motion without any downloads. Dagan prefers its native motion pack, and falls
+back to basic bone animation if the pack is missing. Run Play-Dagan.cmd from
+the extracted ZIP for the full native set. The game checks local caches next
+to the executable as well as the launch directory, supporting desktop shortcuts.

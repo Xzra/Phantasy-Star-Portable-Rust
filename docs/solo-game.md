@@ -1,7 +1,7 @@
 # Solo game foundation
 
 Run `cargo run --features viewer --bin phantasy-star`, or open the Windows
-`phantasy-star.exe`. The original lobby, Hunter avatar and fallback training drone
+`phantasy-star.exe`. The original lobby, Hunter avatar and fallback Forest Crawler
 are procedural; no PSO2 installation or downloaded assets are required.
 
 1. Follow the blue lights to the mission terminal and press E nearby.
@@ -35,7 +35,7 @@ path. No proprietary assets are bundled. See [Classic models](classic-models.md)
 
 You can also pass a supported local model as the first argument. With no argument,
 the game checks `local/dagan.ice` and `local/models/dagan/dagan.ice` relative to its
-working directory, then uses the original drone if no model can be loaded.
+working directory, then uses the original rigged Forest Crawler if no model can be loaded.
 Imported models are grounded, normalized and placed at the simulated enemy position. A companion
 `dagan-motion.ice` beside the selected model enables native movement, windup/attack, damage and death clips; the Windows helpers prepare both archives.
 
@@ -60,3 +60,8 @@ The current quest is a three-wave sequence of single enemies with simple local s
 work is richer player/field art, equipment, multiple enemies and quest reuse,
 then persistence before networking. There is no navigation mesh or imported PSO2
 player character yet.
+
+The monster HUD identifies full native motion, basic rig animation, or the
+original creature. A model without the optional motion pack now animates using
+procedural bone poses. Executable-relative cache discovery also supports desktop
+shortcuts launched from another directory. See [animation](animation.md).

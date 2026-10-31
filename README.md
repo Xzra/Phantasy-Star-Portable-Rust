@@ -7,7 +7,8 @@ is in a good state.
 ## Start here: playable solo prototype
 
 Download `phantasy-star.exe` from [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases)
-and open it to enter the original orbital lobby. No game installation is required.
+and open it to enter the original orbital lobby. The original Forest Crawler
+and Hunter are animated without downloads; no game installation is required.
 Walk to the blue mission terminal and press E to enter Hunter training. Clear
 three waves, gain a level, then use the return pad. The ZIP also includes
 `Play-Dagan.cmd` to fetch the verified Classic Dagan model and motions for the enemy.
@@ -30,7 +31,9 @@ HP/PP action palette support impact feedback. Three waves culminate in a faster
 final enemy and a scored results panel; redeploy from the lobby to keep practicing
 with your current session level. The field is an original forest
 clearing, and the original Hunter uses beveled armor on its 17-bone rig. The
-optional Dagan uses native movement, attack, damage and death motions.
+optional Dagan uses native movement, attack, damage and death motions. Missing
+motion packs use basic joint animation; the standalone Forest Crawler is also
+rigged and animated. The enemy HUD shows which motion set is active.
 
 This is a Classic-inspired prototype with original balance. Player/field art
 remains provisional; equipment, saving, simultaneous multi-enemy combat and multiplayer are
