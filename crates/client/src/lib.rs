@@ -7,3 +7,6 @@ pub mod hunter;
 
 #[cfg(feature = "viewer")]
 pub mod animation;
+
+#[cfg(feature = "viewer")]
+pub mod combat_ui;

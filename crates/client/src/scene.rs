@@ -199,6 +199,27 @@ impl Scene {
 }
 
 impl Scene {
+    pub fn set_grounded_transform(&mut self, center: Vec3, scale: f32, yaw: f32) {
+        let (min, max) = self.model.bounds();
+        let extent = (0..3).map(|i| max[i] - min[i]).fold(0.001_f32, f32::max);
+        let pivot = vec3((min[0] + max[0]) * 0.5, min[1], (min[2] + max[2]) * 0.5);
+        self.presentation = Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), center)
+            * Mat4::from_scale(Vec3::splat(2.0 * scale / extent))
+            * Mat4::from_translation(-pivot);
+        if self.rig.is_none() {
+            for (position, source) in self.positions.iter_mut().zip(&self.model.positions) {
+                *position = self.presentation.transform_point3((*source).into());
+            }
+            for meshes in std::iter::once(&mut self.solid).chain(self.textured.iter_mut()) {
+                for (batch, mesh) in meshes.iter_mut().enumerate() {
+                    for (i, v) in mesh.vertices.iter_mut().enumerate() {
+                        v.position = self.positions
+                            [self.model.triangles[batch * TRIANGLES_PER_MESH + i / 3][i % 3]];
+                    }
+                }
+            }
+        }
+    }
     pub fn set_model_transform(&mut self, transform: Mat4) {
         self.presentation = transform;
     }

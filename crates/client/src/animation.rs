@@ -1,6 +1,7 @@
 //! Presentation-only native clip selection. Damage and quest rules remain in core.
 use crate::scene::Scene;
 use psp_assets::rig::{Clip, Transform};
+use psp_core::world::{EnemyAction, World};
 
 #[derive(Default)]
 pub struct ProjectionMotion {
@@ -37,7 +38,8 @@ impl ProjectionMotion {
                 .is_some_and(|clip| time - start < clip.duration)
         })
     }
-    pub fn update(&mut self, scene: &mut Scene, time: f32, bones: bool) {
+    pub fn update(&mut self, scene: &mut Scene, world: &World, bones: bool) {
+        let time = world.time();
         let Some(rig) = &scene.rig else {
             return;
         };
@@ -46,19 +48,35 @@ impl ProjectionMotion {
         let hit = self.hit_at.map(|t| time - t).unwrap_or(f32::INFINITY);
         let (suffix, elapsed, looping) = if let Some(start) = self.death_at {
             ("31010_dead_a.aqm", time - start, false)
-        } else if hit < 0.18 {
-            ("30210_dmg_front.aqm", hit / 0.18, false)
-        } else if hit < 0.5 {
-            ("20010_atk_near.aqm", (hit - 0.18) / 0.32, false)
+        } else if hit < 0.14 || world.enemy_action() == EnemyAction::Stagger {
+            ("30210_dmg_front.aqm", hit.min(0.65), false)
         } else {
-            ("00010_idle.aqm", time, true)
+            match world.enemy_action() {
+                EnemyAction::Approach => ("10010_mov_f.aqm", world.enemy_elapsed(), true),
+                EnemyAction::Windup => (
+                    "20010_atk_near.aqm",
+                    world.enemy_elapsed() / 0.65 * 0.4,
+                    false,
+                ),
+                EnemyAction::Strike => (
+                    "20010_atk_near.aqm",
+                    0.4 + world.enemy_elapsed() / 0.2 * 0.2,
+                    false,
+                ),
+                EnemyAction::Recover => (
+                    "20010_atk_near.aqm",
+                    0.6 + world.enemy_elapsed() / 0.85 * 0.4,
+                    false,
+                ),
+                _ => ("00010_idle.aqm", time, true),
+            }
         };
         let clip = self.clip(suffix).or_else(|| self.clip("00010_idle.aqm"));
         let mut pose = clip
             .map(|clip| {
                 clip.sample(
                     &rig.skeleton,
-                    if looping || self.death_at.is_some() {
+                    if looping || self.death_at.is_some() || suffix == "30210_dmg_front.aqm" {
                         elapsed
                     } else {
                         elapsed * clip.duration
@@ -67,7 +85,7 @@ impl ProjectionMotion {
                 )
             })
             .unwrap_or_else(|| rig.skeleton.bind_pose());
-        // The stationary training target must stay at its authoritative location.
+        // World motion owns X/Z movement; native root motion stays in place.
         for (bone, transform) in rig.skeleton.bones.iter().zip(&mut pose) {
             if bone.parent.is_none() {
                 transform.translation.x = bone.local_bind.translation.x;

@@ -17,6 +17,7 @@ pub struct Hunter {
     gait: f32,
     movement_blend: f32,
     run_blend: f32,
+    pub blade: [Vec3; 2],
 }
 const BONES: [(&str, Option<usize>, [f32; 3]); 17] = [
     ("hips", None, [0.0, 0.88, 0.0]),
@@ -68,38 +69,39 @@ fn box_part(
 ) {
     let start = model.positions.len();
     let global = skeleton.bones[bone].inverse_bind.inverse();
-    for v in [
-        vec3(-1.0, -1.0, -1.0),
-        vec3(1.0, -1.0, -1.0),
-        vec3(1.0, 1.0, -1.0),
-        vec3(-1.0, 1.0, -1.0),
-        vec3(-1.0, -1.0, 1.0),
-        vec3(1.0, -1.0, 1.0),
-        vec3(1.0, 1.0, 1.0),
-        vec3(-1.0, 1.0, 1.0),
-    ] {
-        model
-            .positions
-            .push(global.transform_point3(center + v * size * 0.5).to_array());
-        skin.push(Influence {
-            joints: [bone as u16, 0, 0, 0],
-            weights: [1.0, 0.0, 0.0, 0.0],
-        });
+    let outline = [
+        [-1.0, -0.65],
+        [-0.65, -1.0],
+        [0.65, -1.0],
+        [1.0, -0.65],
+        [1.0, 0.65],
+        [0.65, 1.0],
+        [-0.65, 1.0],
+        [-1.0, 0.65],
+    ];
+    for y in [-1.0, 1.0] {
+        for [x, z] in outline {
+            let v = vec3(x, y, z);
+            model
+                .positions
+                .push(global.transform_point3(center + v * size * 0.5).to_array());
+            skin.push(Influence {
+                joints: [bone as u16, 0, 0, 0],
+                weights: [1.0, 0.0, 0.0, 0.0],
+            });
+        }
     }
-    for t in [
-        [0, 2, 1],
-        [0, 3, 2],
-        [4, 5, 6],
-        [4, 6, 7],
-        [0, 1, 5],
-        [0, 5, 4],
-        [3, 7, 6],
-        [3, 6, 2],
-        [0, 4, 7],
-        [0, 7, 3],
-        [1, 2, 6],
-        [1, 6, 5],
-    ] {
+    let mut triangles = Vec::new();
+    for i in 1..7 {
+        triangles.push([0, i + 1, i]);
+        triangles.push([8, 8 + i, 8 + i + 1]);
+    }
+    for i in 0..8 {
+        let j = (i + 1) % 8;
+        triangles.push([i, j, j + 8]);
+        triangles.push([i, j + 8, i + 8]);
+    }
+    for t in triangles {
         model.triangles.push(t.map(|v| start + v));
         model.triangle_uvs.push([None; 3]);
         model.triangle_normals.push([None; 3]);
@@ -134,7 +136,7 @@ fn authored_pose(skeleton: &Skeleton, state: usize, t: f32) -> Vec<Transform> {
         pose[5].rotation = Quat::from_rotation_x(if run { -0.9 } else { -0.2 });
         pose[8].rotation = Quat::from_rotation_x(if run { -0.9 } else { -0.35 });
     }
-    if state == 3 {
+    if state >= 3 {
         // Explicit wind-up, cut, follow-through, recovery keys.
         let (shoulder, twist, elbow) = if t < 0.25 {
             let k = t / 0.25;
@@ -153,6 +155,26 @@ fn authored_pose(skeleton: &Skeleton, state: usize, t: f32) -> Vec<Transform> {
         pose[4].rotation = Quat::from_rotation_x(-0.45) * Quat::from_rotation_z(-0.4);
         pose[5].rotation = Quat::from_rotation_x(-0.8);
     }
+    if state == 4 {
+        pose[1].rotation = pose[1].rotation.inverse();
+        pose[2].rotation = pose[2].rotation.inverse();
+        pose[7].rotation = Quat::from_rotation_y(0.7) * pose[7].rotation;
+    }
+    if state == 5 {
+        let cut = if t < 0.4 {
+            -2.5 * t / 0.4
+        } else {
+            -2.5 + 3.5 * (t - 0.4) / 0.6
+        };
+        pose[7].rotation = Quat::from_rotation_x(cut) * Quat::from_rotation_z(-0.25);
+        pose[8].rotation = Quat::from_rotation_x(-0.3);
+        pose[1].rotation = Quat::from_rotation_x(cut * 0.1);
+    }
+    if state == 6 {
+        pose[1].rotation = Quat::from_rotation_y(t * std::f32::consts::TAU);
+        pose[7].rotation = Quat::from_euler(EulerRot::XYZ, -1.3, 0.0, 0.5);
+        pose[8].rotation = Quat::from_rotation_x(-0.2);
+    }
     pose
 }
 fn make_clips(skeleton: &Skeleton) -> Vec<Clip> {
@@ -160,11 +182,14 @@ fn make_clips(skeleton: &Skeleton) -> Vec<Clip> {
         ("Hunter idle", 2.4, 0),
         ("Hunter walk", 0.8, 1),
         ("Hunter run", 0.52, 2),
-        ("Hunter slash", 0.55, 3),
+        ("Hunter slash I", 0.5, 3),
+        ("Hunter slash II", 0.52, 4),
+        ("Hunter cleave III", 0.68, 5),
+        ("Photon sweep", 0.85, 6),
     ]
     .into_iter()
     .map(|(name, duration, state)| {
-        let samples: Vec<f32> = if state == 3 {
+        let samples: Vec<f32> = if state >= 3 {
             vec![0.0, 0.125, 0.25, 0.4, 0.55, 0.75, 1.0]
         } else {
             (0..=16).map(|i| i as f32 / 16.0).collect()
@@ -255,6 +280,7 @@ impl Default for Hunter {
             gait: 0.0,
             movement_blend: 0.0,
             run_blend: 0.0,
+            blade: [Vec3::ZERO; 2],
         }
     }
 }
@@ -280,20 +306,46 @@ impl Hunter {
                 idle.blend(walk.blend(*run, self.run_blend), self.movement_blend)
             })
             .collect();
-        if world.attack_cooldown() > 0.0 {
-            let t = 0.55 - world.attack_cooldown();
-            let attack = self.clips[3].sample(skeleton, t, false);
-            let weight = (t / 0.06).min(1.0) * ((0.55 - t) / 0.1).min(1.0);
+        if let Some(attack) = world.attack() {
+            let index = if attack.photon {
+                6
+            } else {
+                2 + attack.stage as usize
+            };
+            let pose = self.clips[index].sample(skeleton, attack.elapsed, false);
+            let weight =
+                (attack.progress() / 0.1).min(1.0) * ((1.0 - attack.progress()) / 0.15).min(1.0);
             for i in (1..=9).chain(std::iter::once(16)) {
-                self.pose[i] = self.pose[i].blend(attack[i], weight);
+                self.pose[i] = self.pose[i].blend(pose[i], weight);
             }
         }
+        if world.height() > 0.0 {
+            self.pose[10].rotation = Quat::from_rotation_x(-0.65);
+            self.pose[11].rotation = Quat::from_rotation_x(-0.75);
+            self.pose[13].rotation = Quat::from_rotation_x(0.2);
+            self.pose[14].rotation = Quat::from_rotation_x(-1.1);
+        }
+        if world.dodging() {
+            self.pose[1].rotation = Quat::from_rotation_x(0.45);
+            self.pose[0].translation.y -= 0.12;
+        }
+        if world.hurt() {
+            self.pose[1].rotation = Quat::from_rotation_x(-0.3);
+        }
+        if world.defeated() {
+            self.pose[0].rotation = Quat::from_rotation_x(-1.4);
+            self.pose[0].translation.y = 0.18;
+        }
+
         let p = world.position();
-        self.scene
-            .set_model_transform(Mat4::from_rotation_translation(
-                Quat::from_rotation_y(world.facing()),
-                vec3(p.x, 0.0, p.z),
-            ));
+        let transform = Mat4::from_rotation_translation(
+            Quat::from_rotation_y(world.facing()),
+            vec3(p.x, world.height(), p.z),
+        );
+        let globals = skeleton.globals(&self.pose);
+        self.blade = [vec3(0.0, 0.2, 0.0), vec3(0.0, 1.18, 0.0)]
+            .map(|v| transform.transform_point3(globals[16].transform_point3(v)));
+        self.scene.set_model_transform(transform);
         self.scene.animate(&self.pose);
     }
     pub fn draw(&self, bones: bool) {

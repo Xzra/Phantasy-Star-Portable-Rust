@@ -1,18 +1,20 @@
 use macroquad::prelude::*;
 use psp_client::{
     animation::ProjectionMotion,
+    combat_ui::{hud, Feedback},
     hunter::Hunter,
     scene::{capture_frame, Scene},
 };
 use psp_core::{
-    world::{Input, Position, World, WorldEvent, ENEMY, FIXED_STEP, RETURN_PAD, TERMINAL},
+    world::{
+        EnemyAction, Input, Position, World, WorldEvent, ENEMY, FIXED_STEP, RETURN_PAD, TERMINAL,
+    },
     Event, Location, QuestState,
 };
 use std::path::Path;
 
 const INK: Color = Color::new(0.035, 0.065, 0.11, 1.0);
 const ACCENT: Color = Color::new(0.15, 0.85, 0.95, 1.0);
-const PANEL: Color = Color::new(0.035, 0.07, 0.12, 0.94);
 
 fn window_config() -> Conf {
     Conf {
@@ -63,21 +65,39 @@ fn chase_camera(world: &World, target: Vec3, desired: Vec3) -> Vec3 {
 }
 
 fn smoke_input(world: &World) -> Input {
-    let (goal, interact, attack) = match (world.session().location(), world.session().quest()) {
-        (Location::Lobby, _) => (TERMINAL, true, false),
-        (Location::TrainingField, QuestState::Active) => (
-            Position {
-                x: ENEMY.x,
-                z: ENEMY.z + 2.0,
-            },
-            false,
-            true,
-        ),
-        _ => (RETURN_PAD, true, false),
+    if world.defeated() {
+        return Input {
+            interact: true,
+            ..Input::default()
+        };
+    }
+    let active = world.session().location() == Location::TrainingField
+        && world.session().quest() == QuestState::Active;
+    let goal = if world.session().location() == Location::Lobby {
+        TERMINAL
+    } else if active {
+        let enemy = world.enemy_position();
+        let p = world.position();
+        let d = p.distance(enemy).max(0.01);
+        Position {
+            x: enemy.x + (p.x - enemy.x) / d * 2.0,
+            z: enemy.z + (p.z - enemy.z) / d * 2.0,
+        }
+    } else {
+        RETURN_PAD
     };
     let distance = world.position().distance(goal);
+    let dodge = active
+        && world.enemy_action() == EnemyAction::Windup
+        && world.enemy_elapsed() > 0.48
+        && world.dodge_ready();
     Input {
-        movement: if distance > 0.15 {
+        movement: if dodge {
+            Position {
+                x: world.enemy_facing().cos(),
+                z: -world.enemy_facing().sin(),
+            }
+        } else if distance > 0.15 {
             Position {
                 x: goal.x - world.position().x,
                 z: goal.z - world.position().z,
@@ -86,8 +106,15 @@ fn smoke_input(world: &World) -> Input {
             Position::default()
         },
         sprint: true,
-        interact: interact && distance < 2.0,
-        attack: attack && distance < 0.2,
+        interact: !active && distance < 2.0,
+        attack: active && world.position().distance(world.enemy_position()) < 2.6,
+        photon_art: active
+            && world.attack().is_none()
+            && world.pp() >= 35.0
+            && world.position().distance(world.enemy_position()) < 3.2,
+        lock_on: active && !world.locked_on(),
+        dodge,
+        ..Input::default()
     }
 }
 
@@ -114,49 +141,132 @@ fn draw_pad(position: Position, color: Color, active: bool, time: f32) {
     }
 }
 
+fn draw_forest() {
+    draw_cube(
+        vec3(0.0, -0.35, 0.0),
+        vec3(160.0, 0.3, 160.0),
+        None,
+        Color::from_rgba(58, 83, 51, 255),
+    );
+    // Deterministic vertex colors make the clearing readable without a tiled grid.
+    let mut mesh = Mesh {
+        vertices: Vec::new(),
+        indices: Vec::new(),
+        texture: None,
+    };
+    for z in -7..=7 {
+        for x in -7..=7 {
+            let x = x as f32 * 2.0;
+            let z = z as f32 * 2.0;
+            let variation = (x * 1.7 + z * 3.2).sin() * 0.035;
+            mesh.vertices.push(Vertex::new2(
+                vec3(x, 0.012, z),
+                Vec2::ZERO,
+                Color::new(0.32 + variation, 0.43 + variation, 0.23 + variation, 1.0),
+            ));
+        }
+    }
+    for z in 0..14 {
+        for x in 0..14 {
+            let a = (z * 15 + x) as u16;
+            mesh.indices
+                .extend([a, a + 15, a + 1, a + 1, a + 15, a + 16]);
+        }
+    }
+    draw_mesh(&mesh);
+    for i in 0..38 {
+        let angle = i as f32 * 2.39996;
+        let radius = 23.0 + (i % 5) as f32 * 2.7;
+        let height = 6.0 + (i % 4) as f32 * 1.2;
+        let p = vec3(angle.cos() * radius, 0.0, angle.sin() * radius);
+        draw_cylinder(
+            p + Vec3::Y * height * 0.32,
+            0.22,
+            0.4,
+            height * 0.64,
+            None,
+            Color::from_rgba(68, 59, 42, 255),
+        );
+        for layer in 0..3 {
+            let y = height * (0.47 + layer as f32 * 0.2);
+            let width = 2.7 - layer as f32 * 0.6;
+            draw_cylinder(
+                p + Vec3::Y * y,
+                0.05,
+                width,
+                height * 0.45,
+                None,
+                Color::from_rgba(28 + layer * 6, 68 + layer * 10, 43 + layer * 4, 255),
+            );
+        }
+    }
+    for side in [-1.0, 1.0] {
+        draw_cylinder(
+            vec3(side * 55.0, 5.0, -58.0),
+            5.0,
+            32.0,
+            28.0,
+            None,
+            Color::from_rgba(69, 98, 100, 255),
+        );
+    }
+}
+
 fn draw_environment(world: &World) {
     let lobby = world.session().location() == Location::Lobby;
     let size = world.half_extent() * 2.0;
     let floor = if lobby {
         Color::from_rgba(92, 113, 132, 255)
     } else {
-        Color::from_rgba(55, 72, 83, 255)
+        Color::from_rgba(87, 115, 64, 255)
     };
     draw_cube(vec3(0.0, -0.18, 0.0), vec3(size, 0.36, size), None, floor);
-    for i in -(world.half_extent() as i32)..=(world.half_extent() as i32) {
-        let shade = Color::new(0.23, 0.33, 0.4, 1.0);
-        draw_line_3d(
-            vec3(i as f32, 0.012, -size / 2.0),
-            vec3(i as f32, 0.012, size / 2.0),
-            shade,
-        );
-        draw_line_3d(
-            vec3(-size / 2.0, 0.012, i as f32),
-            vec3(size / 2.0, 0.012, i as f32),
-            shade,
-        );
+    if lobby {
+        for i in -(world.half_extent() as i32)..=(world.half_extent() as i32) {
+            let shade = Color::new(0.23, 0.33, 0.4, 1.0);
+            draw_line_3d(
+                vec3(i as f32, 0.012, -size / 2.0),
+                vec3(i as f32, 0.012, size / 2.0),
+                shade,
+            );
+            draw_line_3d(
+                vec3(-size / 2.0, 0.012, i as f32),
+                vec3(size / 2.0, 0.012, i as f32),
+                shade,
+            );
+        }
+    } else {
+        draw_forest();
     }
     for side in [-1.0, 1.0] {
         draw_cube(
-            vec3(side * (size / 2.0 + 0.2), 0.65, 0.0),
-            vec3(0.4, 1.3, size + 0.4),
+            vec3(
+                side * (size / 2.0 + 0.2),
+                if lobby { 0.65 } else { 0.2 },
+                0.0,
+            ),
+            vec3(0.4, if lobby { 1.3 } else { 0.4 }, size + 0.4),
             None,
             INK,
         );
         draw_cube(
-            vec3(0.0, 0.65, side * (size / 2.0 + 0.2)),
-            vec3(size + 0.4, 1.3, 0.4),
+            vec3(
+                0.0,
+                if lobby { 0.65 } else { 0.2 },
+                side * (size / 2.0 + 0.2),
+            ),
+            vec3(size + 0.4, if lobby { 1.3 } else { 0.4 }, 0.4),
             None,
             INK,
         );
         draw_cube(
-            vec3(side * (size / 2.0), 1.32, 0.0),
+            vec3(side * (size / 2.0), if lobby { 1.32 } else { 0.43 }, 0.0),
             vec3(0.08, 0.06, size),
             None,
             ACCENT,
         );
         draw_cube(
-            vec3(0.0, 1.32, side * (size / 2.0)),
+            vec3(0.0, if lobby { 1.32 } else { 0.43 }, side * (size / 2.0)),
             vec3(size, 0.06, 0.08),
             None,
             ACCENT,
@@ -164,6 +274,25 @@ fn draw_environment(world: &World) {
     }
     for (i, obstacle) in world.obstacles().iter().enumerate() {
         let height = obstacle_height(world, i);
+        if !lobby {
+            draw_cylinder(
+                point(obstacle.center, height * 0.4),
+                obstacle.half.x * 0.7,
+                obstacle.half.x,
+                height * 0.8,
+                None,
+                Color::from_rgba(76, 86, 75, 255),
+            );
+            draw_cylinder(
+                point(obstacle.center, height * 0.85),
+                obstacle.half.x * 0.3,
+                obstacle.half.x * 0.7,
+                height * 0.3,
+                None,
+                Color::from_rgba(107, 119, 89, 255),
+            );
+            continue;
+        }
         draw_cube(
             point(obstacle.center, height / 2.0),
             vec3(obstacle.half.x * 2.0, height, obstacle.half.z * 2.0),
@@ -232,19 +361,29 @@ fn draw_environment(world: &World) {
 }
 
 fn draw_player(world: &World, hunter: &Hunter, bones: bool) {
+    let p = world.position();
+    draw_cylinder(
+        point(p, 0.025),
+        0.45,
+        0.45,
+        0.02,
+        None,
+        Color::new(0.0, 0.02, 0.04, 0.55),
+    );
     hunter.draw(bones);
-    let cooldown = world.attack_cooldown();
-    if cooldown > 0.24 {
-        let progress = (0.55 - cooldown) / 0.31;
-        for i in 0..9 {
-            let angle = world.facing() - 1.2 + progress * 2.4 - i as f32 * 0.045;
-            let direction = vec3(angle.sin(), 0.0, angle.cos());
-            draw_line_3d(
-                point(world.position(), 1.0) + direction * 0.6,
-                point(world.position(), 1.0) + direction * 2.1,
-                if i < 3 { WHITE } else { ACCENT },
-            );
-        }
+    if let Some(attack) = world
+        .attack()
+        .filter(|a| a.photon && (0.3..0.75).contains(&a.progress()))
+    {
+        let radius = 1.0 + (attack.progress() - 0.3) * 5.0;
+        draw_cylinder_wires(
+            point(p, world.height() + 0.45),
+            radius,
+            radius,
+            0.12,
+            None,
+            VIOLET,
+        );
     }
 }
 
@@ -254,19 +393,45 @@ fn draw_enemy(world: &World, model: Option<&Scene>, hit_flash: f32, death_visibl
     {
         return;
     }
+    if world.enemy_action() == EnemyAction::Windup || world.enemy_action() == EnemyAction::Strike {
+        let p = point(world.enemy_position(), 0.04);
+        let f = vec3(world.enemy_facing().sin(), 0.0, world.enemy_facing().cos());
+        let r = vec3(f.z, 0.0, -f.x);
+        let a = p + f * 3.0 + r * 1.5;
+        let b = p + f * 3.0 - r * 1.5;
+        let mesh = Mesh {
+            vertices: vec![
+                Vertex::new2(p, Vec2::ZERO, Color::new(1.0, 0.12, 0.05, 0.3)),
+                Vertex::new2(a, Vec2::ZERO, Color::new(1.0, 0.12, 0.05, 0.3)),
+                Vertex::new2(b, Vec2::ZERO, Color::new(1.0, 0.12, 0.05, 0.3)),
+            ],
+            indices: vec![0, 1, 2],
+            texture: None,
+        };
+        draw_mesh(&mesh);
+        draw_line_3d(p, a, ORANGE);
+        draw_line_3d(p, b, ORANGE);
+        draw_line_3d(a, b, ORANGE);
+        draw_cylinder_wires(p, 1.3, 1.3, 0.07, None, RED);
+    }
     if let Some(model) = model {
         model.draw(true);
     } else {
         let bob = (world.time() * 2.0).sin() * 0.1;
         draw_sphere(
-            point(ENEMY, 1.1 + bob),
+            point(world.enemy_position(), 1.1 + bob),
             0.65,
             None,
             Color::new(0.18, 0.24, 0.32, 1.0),
         );
-        draw_cube(point(ENEMY, 1.1 + bob), vec3(1.7, 0.22, 0.35), None, ORANGE);
+        draw_cube(
+            point(world.enemy_position(), 1.1 + bob),
+            vec3(1.7, 0.22, 0.35),
+            None,
+            ORANGE,
+        );
         draw_sphere(
-            point(ENEMY, 1.15 + bob) + vec3(0.0, 0.0, 0.55),
+            point(world.enemy_position(), 1.15 + bob) + vec3(0.0, 0.0, 0.55),
             0.18,
             None,
             RED,
@@ -276,119 +441,12 @@ fn draw_enemy(world: &World, model: Option<&Scene>, hit_flash: f32, death_visibl
         for i in 0..10 {
             let angle = i as f32 * std::f32::consts::TAU / 10.0;
             draw_line_3d(
-                point(ENEMY, 0.9),
-                point(ENEMY, 0.9)
+                point(world.enemy_position(), 0.9),
+                point(world.enemy_position(), 0.9)
                     + vec3(angle.cos(), (angle * 2.0).sin(), angle.sin()) * (1.0 - hit_flash) * 1.7,
                 YELLOW,
             );
         }
-    }
-}
-
-fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
-    let width = screen_width();
-    let height = screen_height();
-    let hunter = world.session().hunter();
-    draw_rectangle(18.0, 16.0, 300.0, 111.0, PANEL);
-    draw_text("PHANTASY STAR / SOLO", 32.0, 42.0, 23.0, ACCENT);
-    draw_text(
-        format!(
-            "HUNTER    LV {}    XP {} / {}",
-            hunter.level,
-            hunter.experience,
-            hunter.level * 100
-        ),
-        32.0,
-        68.0,
-        20.0,
-        WHITE,
-    );
-    draw_rectangle(32.0, 81.0, 270.0, 12.0, Color::new(0.15, 0.2, 0.25, 1.0));
-    draw_rectangle(
-        32.0,
-        81.0,
-        270.0 * hunter.health as f32 / hunter.max_health() as f32,
-        12.0,
-        GREEN,
-    );
-    draw_text(
-        format!("HP {} / {}", hunter.health, hunter.max_health()),
-        32.0,
-        114.0,
-        18.0,
-        LIGHTGRAY,
-    );
-    let location = if world.session().location() == Location::Lobby {
-        "ORBITAL HUB"
-    } else {
-        "HUNTER TRAINING FIELD"
-    };
-    let measured = measure_text(location, None, 25, 1.0);
-    draw_text(location, width - measured.width - 24.0, 42.0, 25.0, WHITE);
-    let objective = match (world.session().location(), world.session().quest()) {
-        (Location::Lobby, QuestState::Available) => {
-            ("Reach the blue terminal.", "Press E to begin training.")
-        }
-        (Location::Lobby, _) => ("Training complete.", "Replay: Esc > New session."),
-        (Location::TrainingField, QuestState::Active) => {
-            ("Approach and face the target.", "Space / LMB to attack.")
-        }
-        _ => ("Training cleared.", "Return pad: approach, press E."),
-    };
-    draw_rectangle(18.0, 140.0, 300.0, 80.0, PANEL);
-    draw_text("OBJECTIVE", 32.0, 162.0, 17.0, ACCENT);
-    draw_text(objective.0, 32.0, 186.0, 18.0, WHITE);
-    draw_text(objective.1, 32.0, 207.0, 18.0, WHITE);
-    if world.session().location() == Location::TrainingField
-        && world.session().quest() == QuestState::Active
-    {
-        let label = if projection {
-            "DAGAN / TRAINING PROJECTION"
-        } else {
-            "TRAINING DRONE"
-        };
-        let w = measure_text(label, None, 20, 1.0).width;
-        let center = width - 188.0;
-        draw_rectangle(center - 170.0, 66.0, 340.0, 50.0, PANEL);
-        draw_text(label, center - w / 2.0, 87.0, 20.0, ORANGE);
-        draw_rectangle(center - 150.0, 96.0, 300.0, 8.0, DARKGRAY);
-        draw_rectangle(
-            center - 150.0,
-            96.0,
-            300.0 * world.session().enemy_health() as f32 / 36.0,
-            8.0,
-            ORANGE,
-        );
-    }
-    draw_rectangle(18.0, height - 68.0, width - 36.0, 50.0, PANEL);
-    draw_text(
-        "WASD: move    Shift: sprint    E: interact    Space / LMB: attack",
-        32.0,
-        height - 46.0,
-        18.0,
-        LIGHTGRAY,
-    );
-    draw_text(
-        "RMB drag / arrows: camera    Wheel: zoom    Esc: pause    F2: bones",
-        32.0,
-        height - 25.0,
-        18.0,
-        LIGHTGRAY,
-    );
-    if let Some(prompt) = world.interaction_prompt() {
-        let w = measure_text(prompt, None, 22, 1.0).width;
-        draw_rectangle(
-            width / 2.0 - w / 2.0 - 18.0,
-            height - 126.0,
-            w + 36.0,
-            42.0,
-            PANEL,
-        );
-        draw_text(prompt, width / 2.0 - w / 2.0, height - 98.0, 22.0, ACCENT);
-    }
-    if message_time > 0.0 {
-        let w = measure_text(message, None, 24, 1.0).width;
-        draw_text(message, (width - w) / 2.0, height - 153.0, 24.0, YELLOW);
     }
 }
 
@@ -418,6 +476,7 @@ async fn main() {
     let mut world = World::default();
     let mut hunter = Hunter::default();
     let mut bones = false;
+    let mut feedback = Feedback::default();
     let candidate = std::env::args().nth(1).or_else(|| {
         ["local/dagan.ice", "local/models/dagan/dagan.ice"]
             .into_iter()
@@ -435,7 +494,7 @@ async fn main() {
                 }
             });
     if let Some(scene) = &mut projection {
-        scene.place_on_ground(point(ENEMY, 0.0), 1.3);
+        scene.place_on_ground(point(world.enemy_position(), 0.0), 1.3);
     }
     let motion_path = std::env::args()
         .nth(2)
@@ -470,9 +529,14 @@ async fn main() {
     let mut paused = false;
     let mut accumulator = 0.0;
     let mut pending_interaction = false;
+    let mut pending_attack = false;
+    let mut pending_dodge = false;
+    let mut pending_jump = false;
+    let mut pending_lock = false;
+    let mut pending_art = false;
     let mut yaw = 0.0_f32;
-    let mut pitch = 0.6_f32;
-    let mut distance = 7.0_f32;
+    let mut pitch = 0.4_f32;
+    let mut distance = 6.4_f32;
     let mut camera_target = point(world.position(), 1.0);
     let mut previous_mouse = mouse_position();
     let mut message = "Welcome aboard. Follow the blue lights to the mission terminal.".to_owned();
@@ -492,6 +556,11 @@ async fn main() {
             paused = !paused;
             accumulator = 0.0;
             pending_interaction = false;
+            pending_attack = false;
+            pending_dodge = false;
+            pending_jump = false;
+            pending_lock = false;
+            pending_art = false;
         }
         if paused && is_key_pressed(KeyCode::Enter) {
             paused = false;
@@ -499,7 +568,7 @@ async fn main() {
         if paused {
             block_attack = true;
         }
-        if !is_key_down(KeyCode::Space) && !is_mouse_button_down(MouseButton::Left) {
+        if !is_key_down(KeyCode::J) && !is_mouse_button_down(MouseButton::Left) {
             block_attack = false;
         }
         let mouse = mouse_position();
@@ -522,6 +591,12 @@ async fn main() {
                 z: -yaw.sin() * x - yaw.cos() * forward,
             };
             pending_interaction |= is_key_pressed(KeyCode::E);
+            pending_attack |= !block_attack
+                && (is_key_pressed(KeyCode::J) || is_mouse_button_pressed(MouseButton::Left));
+            pending_dodge |= is_key_pressed(KeyCode::X);
+            pending_jump |= is_key_pressed(KeyCode::Space);
+            pending_lock |= is_key_pressed(KeyCode::Q);
+            pending_art |= is_key_pressed(KeyCode::F);
             accumulator = (accumulator + delta).min(FIXED_STEP * 6.0);
             while accumulator >= FIXED_STEP {
                 let location = world.session().location();
@@ -533,21 +608,31 @@ async fn main() {
                         sprint: is_key_down(KeyCode::LeftShift),
                         interact: pending_interaction,
                         attack: !block_attack
-                            && (is_key_down(KeyCode::Space)
-                                || is_mouse_button_down(MouseButton::Left)),
+                            && (is_key_down(KeyCode::J) || is_mouse_button_down(MouseButton::Left)),
+                        attack_pressed: pending_attack,
+                        dodge: pending_dodge,
+                        jump: pending_jump,
+                        lock_on: pending_lock,
+                        photon_art: pending_art,
                     }
                 };
                 let events = world.step(input, FIXED_STEP);
                 pending_interaction = false;
+                pending_attack = false;
+                pending_dodge = false;
+                pending_jump = false;
+                pending_lock = false;
+                pending_art = false;
                 for event in events {
                     match event {
                         WorldEvent::Gameplay(Event::QuestStarted) => {
                             motion.reset();
                             message =
-                                "Hunter training started. Approach the projection.".to_owned();
+                                "Combat trial / Q lock-on, X step, F photon sweep.".to_owned();
                             message_time = 4.0;
                         }
-                        WorldEvent::Gameplay(Event::EnemyDamaged { .. }) => {
+                        WorldEvent::Gameplay(Event::EnemyDamaged { damage, .. }) => {
+                            feedback.damage(&world, damage);
                             motion.hit(world.time());
                             hit_flash = 0.35;
                         }
@@ -562,6 +647,18 @@ async fn main() {
                         WorldEvent::Gameplay(Event::ReturnedToLobby) => {
                             message = "Welcome back. Health restored.".to_owned();
                             message_time = 4.0;
+                        }
+                        WorldEvent::PerfectAttack => {
+                            message = "JUST ATTACK / +30% damage".to_owned();
+                            message_time = 0.9;
+                        }
+                        WorldEvent::Evaded => {
+                            message = "STEP EVADE".to_owned();
+                            message_time = 0.9;
+                        }
+                        WorldEvent::Gameplay(Event::HunterDefeated) => {
+                            message = "Incapacitated / E to retry".to_owned();
+                            message_time = 5.0;
                         }
                         WorldEvent::Message(text) => {
                             message = text.to_owned();
@@ -584,25 +681,58 @@ async fn main() {
             bones = !bones;
         }
         hunter.update(&world);
+        if !paused {
+            feedback.tick(delta, &hunter, &world);
+        }
+        if world.locked_on() && !paused {
+            let p = world.position();
+            let e = world.enemy_position();
+            let desired = (p.x - e.x).atan2(p.z - e.z);
+            let angle = (desired - yaw + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU)
+                - std::f32::consts::PI;
+            yaw += angle * (1.0 - (-9.0 * delta).exp());
+        }
         previous_mouse = mouse;
         let offset = vec3(
             yaw.sin() * pitch.cos(),
             pitch.sin(),
             yaw.cos() * pitch.cos(),
         ) * distance;
-        let aim = camera_target + vec3(yaw.cos(), 0.0, -yaw.sin()) * 0.9;
+        let aim = if world.locked_on() {
+            camera_target.lerp(point(world.enemy_position(), 1.1), 0.28)
+                + vec3(yaw.cos(), 0.0, -yaw.sin()) * 1.2
+        } else {
+            camera_target + vec3(yaw.cos(), 0.0, -yaw.sin()) * 0.55
+        };
         let camera_position = chase_camera(&world, aim, aim + offset);
-        clear_background(Color::from_rgba(10, 19, 32, 255));
-        set_camera(&Camera3D {
-            position: camera_position,
-            target: aim,
-            up: Vec3::Y,
-            ..Default::default()
+        clear_background(if world.session().location() == Location::Lobby {
+            Color::from_rgba(10, 19, 32, 255)
+        } else {
+            Color::from_rgba(87, 132, 151, 255)
         });
+        let camera = Camera3D {
+            position: camera_position,
+            target: aim
+                + vec3(
+                    (world.time() * 130.0).sin(),
+                    (world.time() * 99.0).cos(),
+                    0.0,
+                ) * hit_flash
+                    * 0.055,
+            up: Vec3::Y,
+            fovy: 55.0_f32.to_radians(),
+            ..Default::default()
+        };
+        set_camera(&camera);
         draw_environment(&world);
         if world.session().location() == Location::TrainingField {
             if let Some(scene) = &mut projection {
-                motion.update(scene, world.time(), bones);
+                scene.set_grounded_transform(
+                    point(world.enemy_position(), 0.0),
+                    1.3,
+                    world.enemy_facing() - std::f32::consts::FRAC_PI_2,
+                );
+                motion.update(scene, &world, bones);
             }
         }
         draw_enemy(
@@ -614,7 +744,9 @@ async fn main() {
         if camera_position.distance(camera_target) > 1.0 {
             draw_player(&world, &hunter, bones);
         }
+        feedback.draw_world(&world);
         set_default_camera();
+        feedback.draw_screen(&world, &camera);
         hud(&world, &message, message_time, projection.is_some());
         if paused {
             draw_rectangle(
@@ -634,10 +766,16 @@ async fn main() {
             if button("New session", y + 90.0) {
                 world = World::default();
                 hunter = Hunter::default();
+                feedback = Feedback::default();
                 motion.reset();
                 paused = false;
                 accumulator = 0.0;
                 pending_interaction = false;
+                pending_attack = false;
+                pending_dodge = false;
+                pending_jump = false;
+                pending_lock = false;
+                pending_art = false;
                 camera_target = point(world.position(), 1.0);
                 message = "New solo session started.".to_owned();
                 message_time = 4.0;
@@ -677,7 +815,7 @@ async fn main() {
                     Some("lobby")
                 } else if !captured_field
                     && world.session().location() == Location::TrainingField
-                    && world.position().distance(ENEMY) < 3.0
+                    && world.position().distance(world.enemy_position()) < 3.0
                 {
                     captured_field = true;
                     Some("field")
