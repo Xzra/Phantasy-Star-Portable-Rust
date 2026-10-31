@@ -6,19 +6,25 @@ is needed. Follow the blue lights to the mission terminal and press E. Approach
 and face the training target, then attack. Defeat it to reach level 2, follow the
 yellow lights to the return pad, and press E to return to the lobby.
 
-WASD: move relative to camera    Shift: sprint    E: interact
-Space / left mouse: attack      Right mouse drag / arrows: orbit camera
-Mouse wheel: zoom               Escape: pause, new session, quit
+WASD: move     Shift: sprint     Space: jump     Q: lock on
+Left mouse / J: sword combo     X: step          F: photon sweep (35 PP)
+E: interact / retry after defeat
+Right mouse drag / arrows: orbit camera     Wheel: zoom     Escape: pause
 
-To use the real Classic Dagan model as the training projection, extract the ZIP
-and double-click Play-Dagan.cmd. It verifies/downloads the same archive described
-below, then starts the game. Otherwise the game uses an original training drone.
+Time a fresh normal-attack press when the ring turns orange for a stronger
+follow-up. Holding repeats untimed attacks. Normal hits restore PP. Avoid the
+enemy's ground wedge: it chases, winds up, lunges and recovers. Defeat allows E
+to retry; victory awards XP and unlocks the return pad.
 
-Progress lasts only for the session. Use New session in the pause menu to replay.
-The target is stationary with simple counter damage. Enemy AI, equipment,
-saving and multiplayer are not implemented yet. The original Hunter has rigged
-idle/walk/run/slash clips. F2 toggles bones. Dagan uses native idle, hit,
-counterattack and death motion when its separate motion archive is available.
+For native Dagan models and motion, extract the ZIP and run Play-Dagan.cmd.
+It downloads/verifies both archives described below and starts the game. The
+standalone EXE instead works with the original Hunter and fallback enemy.
+
+The field is an original forest clearing. The Hunter has beveled armor and a
+17-bone rig with distinct combo and photon clips. F2 toggles bones. Player and
+field art remain placeholders; this is a Classic-inspired prototype with
+original balance, not an exact PSO2 recreation. Progress is session-only.
+Equipment, multiple enemies, saving and multiplayer are not implemented yet.
 
 MODEL VIEWER
 Double-click model-viewer.exe. The original sample crystal is embedded; no game

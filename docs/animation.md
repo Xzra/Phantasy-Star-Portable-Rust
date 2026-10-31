@@ -11,9 +11,10 @@ presentation and never changes collision, damage or quest rewards.
 The original Hunter is a rigid-weighted, 17-bone model with hips, spine, chest,
 head, shoulders, elbows, hands, hips/knees/feet and a right-hand photon blade.
 Its mesh, colors and keyframes are generated from original code and need no
-external game files. Idle, walk, run and slash clips share the same sampler as
+external game files. Idle, walk, run, three sword swings and photon sweep clips share the same sampler as
 imported motion. Movement speed blends locomotion states; distance advances the
-gait, and an upper-body slash overlay follows the existing attack cooldown.
+gait, and upper-body attack overlays follow the simulation contact phases. Jump, step and
+hurt poses reflect the current player state.
 Escape pauses simulation and animation. F2 toggles joint visualization.
 
 ## Classic Dagan
@@ -39,11 +40,10 @@ clamped playback are separate. Reads stay inside REL0, with bounds/count/finite
 value checks and a two-million-key limit per library.
 
 The actual Dagan archive supplies **44 supported clips**. Its additive
-`30010_dmg_add` variant is skipped with an explicit warning. The game uses idle,
-front damage, near counterattack and death, with short pose blends. Reaction and
-counterattack clips are accelerated to fit the existing training exchange; they
-are cosmetic and do not define new AI or damage timing. Root X/Z translation is
-held in place in the training encounter. The full unmodified clip timing and root
+`30010_dmg_add` variant is skipped with an explicit warning. The game selects native movement, windup/strike/recovery, front damage and death
+from the enemy AI state, with short pose blends. Clip phases fit the prototype
+telegraph and attack timings. The world owns damage and movement; native root
+X/Z translation is held in place, then the simulated enemy transform is applied. The full unmodified clip timing and root
 motion can be examined in the viewer.
 
 ## Run and inspect

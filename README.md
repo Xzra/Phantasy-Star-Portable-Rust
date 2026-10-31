@@ -9,24 +9,30 @@ is in a good state.
 Download `phantasy-star.exe` from [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases)
 and open it to enter the original orbital lobby. No game installation is required.
 Walk to the blue mission terminal and press E to enter Hunter training. Defeat the
-projection, gain a level, then use the return pad. The ZIP also includes
-`Play-Dagan.cmd` to fetch the verified Classic Dagan model for the training target.
+moving enemy, gain a level, then use the return pad. The ZIP also includes
+`Play-Dagan.cmd` to fetch the verified Classic Dagan model and motions for the enemy.
 
 ```sh
 cargo run --features viewer --bin phantasy-star
 cargo run --features viewer --bin phantasy-star -- /path/to/dagan.ice
 ```
 
-WASD moves relative to the camera, Shift sprints, E interacts, and Space or left
-mouse attacks. Hold right mouse and drag, or use the arrow keys, to orbit; scroll
-to zoom. Escape opens the pause menu, including New session and Quit.
+WASD moves, Shift sprints, Space jumps, Q locks on, and X steps. Left mouse or
+J attacks; F uses the original Photon Sweep for 35 PP. Time a fresh attack press
+when the timing ring turns orange for a stronger follow-up. E interacts or retries
+after defeat. Hold RMB and drag, or use arrows, to orbit; scroll to zoom. Escape
+opens the pause menu.
 
-This is a small playable foundation: collision, a chase camera, a stationary
-training target with simple counter damage, XP, and one quest. Progress lasts
-only for the current session. Enemy AI, equipment, saving,
-and multiplayer remain future work. The original Hunter has a 17-bone rig with
-blended idle/walk/run/slash clips. The optional Dagan uses its native skeleton and
-AQM idle, damage, counterattack and death motions. See [solo gameplay](docs/solo-game.md)
+The combat pass adds three sword swings, PP recovery through normal hits, timed
+follow-ups, dodge windows, and an enemy that chases, telegraphs, lunges and
+recovers. The camera holds a locked target; damage numbers, sword trails and the
+HP/PP action palette support impact feedback. The field is an original forest
+clearing, and the original Hunter uses beveled armor on its 17-bone rig. The
+optional Dagan uses native movement, attack, damage and death motions.
+
+This is a Classic-inspired prototype with original balance. Player/field art
+remains provisional; equipment, saving, multi-enemy quests and multiplayer are
+future work. See [combat feel](docs/combat-feel.md), [solo gameplay](docs/solo-game.md)
 and [rigging and animation](docs/animation.md).
 
 ## Model viewer
@@ -108,7 +114,7 @@ server can own the session without depending on a graphics library.
    and camera controls exist. Classic rig/animation support is available; next: broader format/material support.
 2. **Working lobby — initial playable version:** movement, chase camera, collision, mission terminal.
 3. **Hunter class — initial rig:** original jointed model with idle/walk/run/slash; next: equipment and deeper combat.
-4. **Basic combat and leveling — foundation:** range/facing checks, attack cooldowns, damage and XP; next: mobile enemies and richer combat.
+4. **Basic combat and leveling — foundation:** sword combos, timed hits, PP, step/jump and moving enemy AI; next: broader encounters and equipment.
 5. **Basic quest — initial training loop:** enter a field, defeat a projection, receive rewards, return.
 6. **Hostable server:** move established rules behind authoritative commands.
 

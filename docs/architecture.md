@@ -21,8 +21,9 @@ placeholders. `world` adds a fixed 60 Hz simulation with camera-independent X/Z
 movement, normalized input, sprinting, circle/AABB collision, interaction proximity,
 attack range/facing checks, and cooldowns. The client caps catch-up to six ticks
 and smooths presentation separately. Core tests verify the complete quest loop
-and reject invalid movement inputs. There is no persistence, enemy AI, multiplayer,
-or death loop yet. Command/event types are internal APIs, not a network protocol.
+and reject invalid movement inputs. The world now owns enemy chase/telegraph/strike states, delayed sword contacts,
+combos, PP, jumping, step evasion and defeat/retry. There is no persistence or
+multiplayer yet. Command/event types are internal APIs, not a network protocol.
 
 `psp-client` separates headless and graphical entry points. Rendering is optional
 so import and rule work can run without a display. Macroquad provides rendering
@@ -67,3 +68,7 @@ The original Hunter and imported Dagan use this same path. Hunter locomotion
 blends from simulation movement, and attack/reaction clips follow core events.
 Rendering never moves collision or issues rewards. Details and format limits are
 in [animation](animation.md).
+
+The [combat pass](combat-feel.md) keeps enemy transforms and contact phases in
+core; camera lock-on, world-to-screen feedback, clips and field scenery remain
+in presentation. Session damage helpers preserve one-time quest rewards.
