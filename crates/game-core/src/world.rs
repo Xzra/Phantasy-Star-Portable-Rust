@@ -6,6 +6,7 @@ use crate::{Command, Event, Location, QuestState, Session};
 
 pub const FIXED_STEP: f32 = 1.0 / 60.0;
 pub const PLAYER_RADIUS: f32 = 0.38;
+const ACTOR_SEPARATION: f32 = 1.1 + PLAYER_RADIUS;
 pub const ATTACK_RANGE: f32 = 2.6;
 pub const TERMINAL: Position = Position { x: 0.0, z: -7.5 };
 pub const ENEMY: Position = Position { x: 0.0, z: -4.0 };
@@ -242,6 +243,24 @@ fn normalized(input: Position) -> Position {
         z: z / length,
     }
 }
+
+/// Both actors use the same contact distance. Existing overlaps may only move
+/// outward or tangentially; this prevents a contact state from trapping movement.
+fn actor_step_free(from: Position, to: Position, other: Position) -> bool {
+    let before = Position {
+        x: from.x - other.x,
+        z: from.z - other.z,
+    };
+    let after = Position {
+        x: to.x - other.x,
+        z: to.z - other.z,
+    };
+    let before_squared = before.x * before.x + before.z * before.z;
+    let after_squared = after.x * after.x + after.z * after.z;
+    let outward = (to.x - from.x) * before.x + (to.z - from.z) * before.z;
+    after_squared >= ACTOR_SEPARATION * ACTOR_SEPARATION
+        || (after_squared > before_squared && outward >= 0.0)
+}
 impl World {
     pub fn can_shop(&self) -> bool {
         self.session.location() == Location::Lobby
@@ -426,7 +445,7 @@ impl World {
             && (self.session.location() != Location::TrainingField
                 || self.session.quest() != QuestState::Active
                 || self.session.enemy_health() == 0
-                || position.distance(self.enemy_position) >= 1.1 + PLAYER_RADIUS)
+                || actor_step_free(self.position, position, self.enemy_position))
     }
     fn move_player(&mut self, movement: Position, speed: f32, delta: f32) {
         let before = self.position;
@@ -457,14 +476,14 @@ impl World {
                 x: self.enemy_position.x + movement.x * speed * delta / steps as f32,
                 ..self.enemy_position
             };
-            if self.terrain_free(x, 0.9) && x.distance(self.position) >= 1.4 {
+            if self.terrain_free(x, 0.9) && actor_step_free(self.enemy_position, x, self.position) {
                 self.enemy_position = x;
             }
             let z = Position {
                 z: self.enemy_position.z + movement.z * speed * delta / steps as f32,
                 ..self.enemy_position
             };
-            if self.terrain_free(z, 0.9) && z.distance(self.position) >= 1.4 {
+            if self.terrain_free(z, 0.9) && actor_step_free(self.enemy_position, z, self.position) {
                 self.enemy_position = z;
             }
         }
@@ -1014,6 +1033,69 @@ mod tests {
             },
         );
         assert!(w.position.z >= -0.82);
+    }
+    #[test]
+    fn lunging_enemy_cannot_enter_a_gap_that_traps_player_movement() {
+        let mut w = close_trial();
+        w.position = Position { x: 0.0, z: 0.0 };
+        w.enemy_position = Position { x: 0.0, z: -1.55 };
+        w.move_enemy(Position { x: 0.0, z: 1.0 }, 8.5, FIXED_STEP);
+        assert!(w.position.distance(w.enemy_position) >= 1.1 + PLAYER_RADIUS);
+        let before = w.position;
+        w.move_player(normalized(Position { x: 1.0, z: 1.0 }), 4.0, FIXED_STEP);
+        assert!(w.position.distance(before) > 0.05);
+    }
+    #[test]
+    fn overlapping_actors_can_separate_at_walk_and_attack_speeds() {
+        for speed in [1.3, 4.0] {
+            let mut w = close_trial();
+            w.position = Position { x: 0.0, z: 0.0 };
+            w.enemy_position = Position { x: 0.0, z: -1.41 };
+            let before = w.position;
+            w.move_player(Position { x: 0.0, z: 1.0 }, speed, FIXED_STEP);
+            assert!(w.position.z > before.z, "escape at speed {speed}");
+            let before = w.position;
+            w.move_player(Position { x: 0.0, z: -1.0 }, speed, FIXED_STEP);
+            assert_eq!(w.position, before, "cannot deepen overlap");
+        }
+        let mut w = close_trial();
+        w.enemy_position = w.position;
+        let before = w.position;
+        w.move_player(Position { x: 1.0, z: 0.0 }, 4.0, FIXED_STEP);
+        assert!(
+            w.position.x > before.x,
+            "coincident centers must be escapable"
+        );
+        let enemy_before = w.enemy_position;
+        w.move_enemy(Position { x: 1.0, z: 0.0 }, 8.5, FIXED_STEP);
+        assert_eq!(
+            w.enemy_position, enemy_before,
+            "cannot cross the other center while overlapping"
+        );
+        w.move_enemy(Position { x: -1.0, z: 0.0 }, 8.5, FIXED_STEP);
+        assert!(
+            w.enemy_position.x < enemy_before.x,
+            "enemy can also retreat from overlap"
+        );
+    }
+    #[test]
+    fn contact_escape_can_slide_along_a_wall_without_crossing_it() {
+        let mut w = close_trial();
+        w.position = Position { x: 14.6, z: 0.0 };
+        w.enemy_position = Position { x: 13.2, z: 0.0 };
+        let before = w.position;
+        w.move_player(Position { x: 1.0, z: 0.0 }, 4.0, FIXED_STEP);
+        assert_eq!(
+            w.position, before,
+            "the wall still blocks escape through it"
+        );
+        for _ in 0..20 {
+            w.move_player(Position { x: 0.0, z: 1.0 }, 4.0, FIXED_STEP);
+        }
+        assert!(w.position.z > 1.0);
+        assert!(w.position.x <= w.half_extent() - PLAYER_RADIUS);
+        assert!(w.terrain_free(w.position, PLAYER_RADIUS));
+        assert!(w.position.distance(w.enemy_position) > 1.48);
     }
     #[test]
     fn attack_contacts_once_after_windup_and_never_causes_automatic_counter_damage() {

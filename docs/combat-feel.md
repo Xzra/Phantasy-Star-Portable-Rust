@@ -41,6 +41,12 @@ on contact, and has a 3.5-unit range. The normal range is 2.6. The third normal
 hit and connected Photon Arts briefly stagger the enemy. Dodge cancels an attack without a PP
 refund. Input during hit-stop is retained for the next simulation tick.
 
+Player and enemy movement use the same 1.48-unit contact separation. A lunge
+cannot enter the smaller gap that previously trapped the player. If the actors
+already overlap, steps that separate them or slide tangentially remain possible;
+moving deeper through the other actor is rejected. Walls, props and dodge
+substeps still constrain movement, including while escaping contact.
+
 ## Weapon Photon Art slot
 
 Each owned sword has one equippable art. Open Tab / I (or Inventory in the pause
