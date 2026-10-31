@@ -6,6 +6,7 @@ use psp_client::{
     hunter::Hunter,
     inventory_ui::{draw_menu_cursor, InventoryMenu},
     monster,
+    presentation::{self, Environment},
     scene::{capture_frame, Scene},
 };
 use psp_core::{
@@ -149,105 +150,12 @@ fn draw_pad(position: Position, color: Color, active: bool, time: f32) {
     }
 }
 
-fn draw_forest() {
-    draw_cube(
-        vec3(0.0, -0.35, 0.0),
-        vec3(160.0, 0.3, 160.0),
-        None,
-        Color::from_rgba(58, 83, 51, 255),
-    );
-    // Deterministic vertex colors make the clearing readable without a tiled grid.
-    let mut mesh = Mesh {
-        vertices: Vec::new(),
-        indices: Vec::new(),
-        texture: None,
-    };
-    for z in -7..=7 {
-        for x in -7..=7 {
-            let x = x as f32 * 2.0;
-            let z = z as f32 * 2.0;
-            let variation = (x * 1.7 + z * 3.2).sin() * 0.035;
-            mesh.vertices.push(Vertex::new2(
-                vec3(x, 0.012, z),
-                Vec2::ZERO,
-                Color::new(0.32 + variation, 0.43 + variation, 0.23 + variation, 1.0),
-            ));
-        }
-    }
-    for z in 0..14 {
-        for x in 0..14 {
-            let a = (z * 15 + x) as u16;
-            mesh.indices
-                .extend([a, a + 15, a + 1, a + 1, a + 15, a + 16]);
-        }
-    }
-    draw_mesh(&mesh);
-    for i in 0..38 {
-        let angle = i as f32 * 2.39996;
-        let radius = 23.0 + (i % 5) as f32 * 2.7;
-        let height = 6.0 + (i % 4) as f32 * 1.2;
-        let p = vec3(angle.cos() * radius, 0.0, angle.sin() * radius);
-        draw_cylinder(
-            p + Vec3::Y * height * 0.32,
-            0.22,
-            0.4,
-            height * 0.64,
-            None,
-            Color::from_rgba(68, 59, 42, 255),
-        );
-        for layer in 0..3 {
-            let y = height * (0.47 + layer as f32 * 0.2);
-            let width = 2.7 - layer as f32 * 0.6;
-            draw_cylinder(
-                p + Vec3::Y * y,
-                0.05,
-                width,
-                height * 0.45,
-                None,
-                Color::from_rgba(28 + layer * 6, 68 + layer * 10, 43 + layer * 4, 255),
-            );
-        }
-    }
-    for side in [-1.0, 1.0] {
-        draw_cylinder(
-            vec3(side * 55.0, 5.0, -58.0),
-            5.0,
-            32.0,
-            28.0,
-            None,
-            Color::from_rgba(69, 98, 100, 255),
-        );
-    }
-}
-
-fn draw_environment(world: &World) {
+fn draw_environment(world: &World, environment: &Environment) {
     let lobby = world.session().location() == Location::Lobby;
     let size = world.half_extent() * 2.0;
-    let floor = if lobby {
-        Color::from_rgba(92, 113, 132, 255)
-    } else {
-        Color::from_rgba(87, 115, 64, 255)
-    };
-    draw_cube(vec3(0.0, -0.18, 0.0), vec3(size, 0.36, size), None, floor);
-    if lobby {
-        for i in -(world.half_extent() as i32)..=(world.half_extent() as i32) {
-            let shade = Color::new(0.23, 0.33, 0.4, 1.0);
-            draw_line_3d(
-                vec3(i as f32, 0.012, -size / 2.0),
-                vec3(i as f32, 0.012, size / 2.0),
-                shade,
-            );
-            draw_line_3d(
-                vec3(-size / 2.0, 0.012, i as f32),
-                vec3(size / 2.0, 0.012, i as f32),
-                shade,
-            );
-        }
-    } else {
-        draw_forest();
-    }
+    environment.draw(lobby);
     for side in [-1.0, 1.0] {
-        draw_cube(
+        presentation::cube(
             vec3(
                 side * (size / 2.0 + 0.2),
                 if lobby { 0.65 } else { 0.2 },
@@ -257,7 +165,7 @@ fn draw_environment(world: &World) {
             None,
             INK,
         );
-        draw_cube(
+        presentation::cube(
             vec3(
                 0.0,
                 if lobby { 0.65 } else { 0.2 },
@@ -267,13 +175,13 @@ fn draw_environment(world: &World) {
             None,
             INK,
         );
-        draw_cube(
+        presentation::cube(
             vec3(side * (size / 2.0), if lobby { 1.32 } else { 0.43 }, 0.0),
             vec3(0.08, 0.06, size),
             None,
             ACCENT,
         );
-        draw_cube(
+        presentation::cube(
             vec3(0.0, if lobby { 1.32 } else { 0.43 }, side * (size / 2.0)),
             vec3(size, 0.06, 0.08),
             None,
@@ -301,13 +209,13 @@ fn draw_environment(world: &World) {
             );
             continue;
         }
-        draw_cube(
+        presentation::cube(
             point(obstacle.center, height / 2.0),
             vec3(obstacle.half.x * 2.0, height, obstacle.half.z * 2.0),
             None,
             INK,
         );
-        draw_cube(
+        presentation::cube(
             point(obstacle.center, height + 0.03),
             vec3(obstacle.half.x * 2.0, 0.06, obstacle.half.z * 2.0),
             None,
@@ -316,8 +224,8 @@ fn draw_environment(world: &World) {
     }
     if lobby {
         draw_pad(TERMINAL, ACCENT, true, world.time());
-        draw_cube(point(TERMINAL, 0.9), vec3(1.2, 1.8, 0.7), None, INK);
-        draw_cube(
+        presentation::cube(point(TERMINAL, 0.9), vec3(1.2, 1.8, 0.7), None, INK);
+        presentation::cube(
             point(TERMINAL, 1.55) + vec3(0.0, 0.0, 0.38),
             vec3(0.95, 0.65, 0.05),
             None,
@@ -325,7 +233,7 @@ fn draw_environment(world: &World) {
         );
         draw_sphere(point(TERMINAL, 2.45), 0.24, None, SKYBLUE);
         for i in -5..5 {
-            draw_cube(
+            presentation::cube(
                 vec3(0.0, 0.025, i as f32),
                 vec3(0.1, 0.02, 0.5),
                 None,
@@ -337,7 +245,7 @@ fn draw_environment(world: &World) {
             vec3(-14.0, 16.0, -46.0),
             8.0,
             None,
-            Color::new(0.08, 0.25, 0.38, 1.0),
+            Color::new(0.10, 0.30, 0.44, 1.0),
         );
         for i in 0..28 {
             let x = (i as f32 * 13.37).sin() * 45.0;
@@ -462,6 +370,8 @@ fn button(label: &str, y: f32) -> bool {
 
 #[macroquad::main(window_config)]
 async fn main() {
+    presentation::initialize_font();
+    let environment = Environment::default();
     let mut world = World::default();
     if let Ok(id) = std::env::var("PSP_SMOKE_WEAPON") {
         world
@@ -787,7 +697,7 @@ async fn main() {
         clear_background(if world.session().location() == Location::Lobby {
             Color::from_rgba(10, 19, 32, 255)
         } else {
-            Color::from_rgba(87, 132, 151, 255)
+            Color::from_rgba(117, 155, 162, 255)
         });
         let camera = Camera3D {
             position: camera_position,
@@ -803,7 +713,7 @@ async fn main() {
             ..Default::default()
         };
         set_camera(&camera);
-        draw_environment(&world);
+        draw_environment(&world, &environment);
         if world.session().location() == Location::TrainingField {
             if let Some(scene) = &mut projection {
                 scene.set_grounded_transform(

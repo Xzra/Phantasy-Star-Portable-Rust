@@ -1,4 +1,5 @@
 //! Paused inventory: selecting an item is separate from equipping it.
+use crate::presentation;
 use macroquad::prelude::*;
 use psp_core::{
     inventory::{WeaponId, INVENTORY_CAPACITY},
@@ -71,13 +72,24 @@ impl InventoryMenu {
         let height = (screen_height() - 32.0).min(540.0);
         let x = (screen_width() - width) * 0.5;
         let y = (screen_height() - height) * 0.5;
-        draw_rectangle(x - 8.0, y - 8.0, width + 16.0, height + 16.0, PANEL);
+        presentation::panel(
+            Rect::new(x - 8.0, y - 8.0, width + 16.0, height + 16.0),
+            ACCENT,
+        );
+        draw_line(
+            x + 12.0,
+            y + 62.0,
+            x + width - 12.0,
+            y + 62.0,
+            1.0,
+            Color::new(0.2, 0.4, 0.48, 0.6),
+        );
         draw_text(
-            "INVENTORY / WEAPONS & PHOTON ARTS",
+            "EQUIPMENT  /  WEAPONS & PHOTON ARTS",
             x + 12.0,
             y + 28.0,
-            25.0,
-            ACCENT,
+            23.0,
+            WHITE,
         );
         draw_text(
             format!(

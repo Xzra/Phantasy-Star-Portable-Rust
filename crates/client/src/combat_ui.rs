@@ -1,4 +1,4 @@
-use crate::hunter::Hunter;
+use crate::{hunter::Hunter, presentation};
 use macroquad::prelude::*;
 use psp_core::{
     world::{EnemyAction, World},
@@ -164,7 +164,7 @@ pub fn hud(
         draw_rectangle(0.0, h - 12.0, w, 12.0, color);
     }
     let hunter = world.session().hunter();
-    draw_rectangle(18.0, 16.0, 256.0, 43.0, PANEL);
+    presentation::panel(Rect::new(18.0, 16.0, 280.0, 43.0), CYAN);
     draw_rectangle(18.0, 16.0, 3.0, 43.0, CYAN);
     draw_text(
         format!("HUNTER / {}", world.weapon().kind.name().to_uppercase()),
@@ -189,7 +189,7 @@ pub fn hud(
     if world.session().location() == Location::TrainingField
         && world.session().quest() == QuestState::Active
     {
-        draw_rectangle(18.0, 69.0, 256.0, 55.0, PANEL);
+        presentation::panel(Rect::new(18.0, 69.0, 256.0, 55.0), ORANGE);
         draw_text(
             if projection {
                 if world.session().wave() == 3 {
@@ -235,7 +235,7 @@ pub fn hud(
             monster_motion,
             22.0,
             141.0,
-            15.0,
+            13.0,
             if monster_motion.starts_with("Basic") {
                 ORANGE
             } else {
@@ -294,7 +294,7 @@ pub fn hud(
     }
     let x = 18.0;
     let y = h - 134.0;
-    draw_rectangle(x, y, 256.0, 111.0, PANEL);
+    presentation::panel(Rect::new(x, y, 256.0, 111.0), CYAN);
     draw_text(
         format!("HP   {} / {}", hunter.health, hunter.max_health()),
         x + 12.0,
