@@ -13,6 +13,7 @@ Middle mouse drag / arrows: orbit camera     Wheel: zoom     Escape: pause
 Tab / I: inventory. Click a weapon or Up/Down selects it; E equips it.
 Click a PA or use 1/2/3 to slot its disc on the selected weapon; 0 removes it.
 Tab / I / Escape / Enter closes the inventory. Combat pauses while it is open.
+A white/cyan cursor appears above inventory and pause menus for mouse selection.
 
 INVENTORY
 Three owned swords start in your 32-item bag: Training Sword (ATK +0, cyan),

@@ -8,6 +8,21 @@ use psp_core::{
 const ACCENT: Color = Color::new(0.15, 0.85, 0.95, 1.0);
 const PANEL: Color = Color::new(0.035, 0.065, 0.11, 1.0);
 
+/// Draw after the menu so the pointer stays visible above every panel.
+/// The tip uses the same coordinates as the menu's click targets.
+pub fn draw_menu_cursor() {
+    let (x, y) = mouse_position();
+    let tip = vec2(x, y);
+    let left = tip + vec2(1.0, 23.0);
+    let right = tip + vec2(17.0, 16.0);
+    let shadow = vec2(2.0, 2.0);
+    draw_triangle(tip + shadow, left + shadow, right + shadow, BLACK);
+    draw_line(x + 8.0, y + 16.0, x + 14.0, y + 29.0, 6.0, BLACK);
+    draw_triangle(tip, left, right, WHITE);
+    draw_triangle_lines(tip, left, right, 1.5, ACCENT);
+    draw_line(x + 7.0, y + 15.0, x + 12.0, y + 26.0, 3.0, WHITE);
+}
+
 pub struct InventoryMenu {
     selected: WeaponId,
     notice: String,

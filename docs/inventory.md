@@ -3,6 +3,8 @@
 Tab or I opens the paused inventory. The left pane lists owned weapon instances;
 the right pane lists owned PA discs and the weapon holding each disc. Selecting
 a weapon inspects its slot without immediately equipping it.
+A white pointer with a cyan outline appears above inventory and pause panels,
+using its tip as the click point. Closing the menu restores the system cursor.
 
 - Click a weapon, or use Up/Down, to select it. The mouse wheel over the weapon
   list also selects items; longer lists page with selection.

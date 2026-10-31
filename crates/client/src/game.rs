@@ -4,7 +4,7 @@ use psp_client::{
     asset_paths,
     combat_ui::{hud, Feedback},
     hunter::Hunter,
-    inventory_ui::InventoryMenu,
+    inventory_ui::{draw_menu_cursor, InventoryMenu},
     monster,
     scene::{capture_frame, Scene},
 };
@@ -887,6 +887,13 @@ async fn main() {
                 let w = measure_text(note, None, 17, 1.0).width;
                 draw_text(note, (screen_width() - w) / 2.0, y + 286.0, 17.0, LIGHTGRAY);
             }
+        }
+        // Use a visible in-window pointer for both inventory and pause menus.
+        // Hide the system pointer here to avoid drawing two cursors.
+        show_mouse(!paused);
+        if paused {
+            set_cursor_grab(false);
+            draw_menu_cursor();
         }
         frames += 1;
         if smoke {
