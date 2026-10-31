@@ -26,3 +26,8 @@ required-features = ["viewer"]
 name = "phantasy-star"
 path = "src/game.rs"
 required-features = ["viewer"]
+
+[[bin]]
+name = "engine-editor"
+path = "src/editor.rs"
+required-features = ["viewer"]

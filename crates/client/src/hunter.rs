@@ -70,7 +70,57 @@ fn make_skeleton() -> Skeleton {
     Skeleton { bones }
 }
 
+/// Contact fractions come from gameplay, keeping dramatic wind-up and fast cuts
+/// centered on the actual damage frame even when project attack speed changes.
+fn contact_fraction(state: usize) -> f32 {
+    let normal = match state {
+        3..=5 => Some((WeaponClass::Sword, (state - 2) as u8)),
+        9..=11 => Some((WeaponClass::Partisan, (state - 8) as u8)),
+        12..=14 => Some((WeaponClass::Knuckles, (state - 11) as u8)),
+        _ => None,
+    };
+    if let Some((class, stage)) = normal {
+        let s = class.attack(stage);
+        return s.hit_at / s.duration;
+    }
+    let art = match state {
+        6 => PhotonArt::Sweep,
+        7 => PhotonArt::RisingCleave,
+        8 => PhotonArt::PiercingThrust,
+        15 => PhotonArt::MeteorFist,
+        16 => PhotonArt::AssaultThrust,
+        _ => return 0.4,
+    };
+    let s = art.spec();
+    s.hit_at / s.duration
+}
+fn smooth(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+fn anime_phase(state: usize, t: f32) -> f32 {
+    let hit = contact_fraction(state);
+    let peak = match state {
+        5 => 0.72,
+        7 => 0.45,
+        8..=16 => 0.4,
+        _ => 0.55,
+    };
+    let prepare = hit * 0.72;
+    if t < prepare {
+        peak * 0.4 * smooth(t / prepare)
+    } else if t < hit {
+        peak * (0.4 + 0.6 * smooth((t - prepare) / (hit - prepare)))
+    } else if t < hit + 0.1 {
+        peak + (1.0 - peak) * 0.12 * (t - hit) / 0.1
+    } else {
+        peak + (1.0 - peak) * (0.12 + 0.88 * smooth((t - hit - 0.1) / (0.9 - hit)))
+    }
+}
+
 fn authored_pose(skeleton: &Skeleton, state: usize, t: f32, energy: f32) -> Vec<Transform> {
+    let progress = t;
+    let t = if state >= 3 { anime_phase(state, t) } else { t };
     let mut pose = skeleton.bind_pose();
     let phase = t * std::f32::consts::TAU;
     let idle = (phase).sin();
@@ -83,9 +133,9 @@ fn authored_pose(skeleton: &Skeleton, state: usize, t: f32, energy: f32) -> Vec<
     pose[8].rotation = Quat::from_rotation_x(-0.22);
     if state == 1 || state == 2 {
         let run = state == 2;
-        let swing = phase.sin() * if run { 0.95 } else { 0.48 };
+        let swing = phase.sin() * if run { 1.1 } else { 0.48 };
         pose[0].translation.y += (phase * 2.0).cos() * if run { 0.045 } else { 0.022 };
-        pose[1].rotation = Quat::from_rotation_x(if run { 0.18 } else { 0.05 })
+        pose[1].rotation = Quat::from_rotation_x(if run { 0.34 } else { 0.05 })
             * Quat::from_rotation_y(phase.sin() * 0.08);
         pose[10].rotation = Quat::from_rotation_x(swing);
         pose[13].rotation = Quat::from_rotation_x(-swing);
@@ -97,6 +147,16 @@ fn authored_pose(skeleton: &Skeleton, state: usize, t: f32, energy: f32) -> Vec<
         pose[7].rotation = Quat::from_rotation_x(swing * 0.6) * Quat::from_rotation_z(0.12);
         pose[5].rotation = Quat::from_rotation_x(if run { -0.9 } else { -0.2 });
         pose[8].rotation = Quat::from_rotation_x(if run { -0.9 } else { -0.35 });
+        if run {
+            // Forward drive, low hips and trailing arms give a purposeful sprint silhouette.
+            pose[0].translation.y -= 0.045;
+            pose[4].rotation =
+                Quat::from_euler(EulerRot::XYZ, 0.55 - phase.sin() * 0.2, 0.0, -0.22);
+            pose[7].rotation = Quat::from_euler(EulerRot::XYZ, 0.65 + phase.sin() * 0.2, 0.0, 0.22);
+            pose[5].rotation = Quat::from_rotation_x(-1.05);
+            pose[8].rotation = Quat::from_rotation_x(-0.85);
+            pose[3].rotation = Quat::from_rotation_x(-0.2);
+        }
     }
     if state >= 3 {
         // Explicit wind-up, cut, follow-through, recovery keys.
@@ -147,7 +207,7 @@ fn authored_pose(skeleton: &Skeleton, state: usize, t: f32, energy: f32) -> Vec<
         pose[8].rotation = Quat::from_rotation_x(-0.35);
         pose[1].rotation = Quat::from_rotation_x(-0.18 * lift);
     }
-    if state == 8 {
+    if state == 8 || state == 16 {
         let reach = if t < 0.38 {
             t / 0.38
         } else {
@@ -188,6 +248,24 @@ fn authored_pose(skeleton: &Skeleton, state: usize, t: f32, energy: f32) -> Vec<
         pose[6].rotation = Quat::IDENTITY;
     }
     if state >= 3 {
+        let hit = contact_fraction(state);
+        let stance = (std::f32::consts::PI * progress).sin().max(0.0) * energy;
+        pose[0].translation.y -= stance * 0.06;
+        pose[0].translation.x += stance
+            * if state == 4 || state == 12 {
+                -0.035
+            } else {
+                0.035
+            };
+        pose[10].rotation = Quat::from_euler(EulerRot::XYZ, -0.16 * stance, 0.0, -0.13 * stance);
+        pose[13].rotation = Quat::from_euler(EulerRot::XYZ, 0.22 * stance, 0.0, 0.13 * stance);
+        pose[11].rotation = Quat::from_rotation_x(-0.25 * stance);
+        pose[14].rotation = Quat::from_rotation_x(-0.3 * stance);
+        pose[3].rotation = Quat::from_rotation_y(-pose[2].rotation.to_euler(EulerRot::YXZ).0 * 0.3);
+        // A short follow-through holds the silhouette without moving the collision body.
+        if (hit..hit + 0.13).contains(&progress) {
+            pose[2].rotation *= Quat::from_rotation_z(0.07 * energy);
+        }
         for i in [1, 2, 4, 5, 7, 8] {
             pose[i].rotation = Quat::IDENTITY.slerp(pose[i].rotation, energy);
         }
@@ -212,11 +290,26 @@ fn make_clips(skeleton: &Skeleton, energy: f32) -> Vec<Clip> {
         ("Knuckles cross", 0.34, 13),
         ("Knuckles uppercut", 0.46, 14),
         ("Meteor fist", 0.65, 15),
+        ("Assault thrust", 0.8, 16),
     ]
     .into_iter()
     .map(|(name, duration, state)| {
         let samples: Vec<f32> = if state >= 3 {
-            vec![0.0, 0.125, 0.25, 0.4, 0.55, 0.75, 1.0]
+            let hit = contact_fraction(state);
+            let mut keys = vec![
+                0.0,
+                0.12,
+                hit * 0.72,
+                hit - 0.01,
+                hit,
+                hit + 0.035,
+                hit + 0.1,
+                0.78,
+                1.0,
+            ];
+            keys.sort_by(f32::total_cmp);
+            keys.dedup();
+            keys
         } else {
             (0..=16).map(|i| i as f32 / 16.0).collect()
         };
@@ -419,7 +512,7 @@ impl Hunter {
         let class = world
             .attack()
             .map_or(world.weapon().kind.class(), |a| a.class);
-        self.ensure_model(class, world.character(), 1.0);
+        self.ensure_model(class, world.character(), world.settings().animation_energy);
         let delta = (world.time() - self.last_time).clamp(0.0, 0.1);
         let distance = (world.distance_walked() - self.last_distance).max(0.0);
         let speed = if delta > 0.0 { distance / delta } else { 0.0 };
@@ -451,7 +544,8 @@ impl Hunter {
                 match attack.art.unwrap() {
                     PhotonArt::Sweep => 6,
                     PhotonArt::RisingCleave => 7,
-                    PhotonArt::PiercingThrust | PhotonArt::AssaultThrust => 8,
+                    PhotonArt::PiercingThrust => 8,
+                    PhotonArt::AssaultThrust => 16,
                     PhotonArt::MeteorFist => 15,
                 }
             } else {
@@ -471,6 +565,10 @@ impl Hunter {
             for i in (1..=9).chain(std::iter::once(16)) {
                 self.pose[i] = self.pose[i].blend(pose[i], weight);
             }
+            for i in std::iter::once(0).chain(10..=15) {
+                self.pose[i] =
+                    self.pose[i].blend(pose[i], weight * (1.0 - self.movement_blend * 0.8));
+            }
         }
         if world.height() > 0.0 {
             self.pose[10].rotation = Quat::from_rotation_x(-0.65);
@@ -479,8 +577,12 @@ impl Hunter {
             self.pose[14].rotation = Quat::from_rotation_x(-1.1);
         }
         if world.dodging() {
-            self.pose[1].rotation = Quat::from_rotation_x(0.45);
-            self.pose[0].translation.y -= 0.12;
+            self.pose[1].rotation = Quat::from_euler(EulerRot::XYZ, 0.65, 0.0, -0.12);
+            self.pose[0].translation.y -= 0.16;
+            self.pose[4].rotation = Quat::from_euler(EulerRot::XYZ, 0.7, 0.0, -0.35);
+            self.pose[7].rotation = Quat::from_euler(EulerRot::XYZ, 0.8, 0.0, 0.35);
+            self.pose[11].rotation = Quat::from_rotation_x(-0.65);
+            self.pose[14].rotation = Quat::from_rotation_x(-0.8);
         }
         if world.hurt() {
             self.pose[1].rotation = Quat::from_rotation_x(-0.3);
@@ -593,6 +695,34 @@ fn body_scale(build: u8) -> Vec3 {
 mod tests {
     use super::*;
     use psp_core::world::{Input, Position, FIXED_STEP};
+    #[test]
+    fn anime_clips_include_damage_frame_and_remain_finite_at_all_energy_limits() {
+        for energy in [0.6, 1.0, 1.4] {
+            let hunter = Hunter::for_character(
+                WeaponClass::Sword,
+                &Character {
+                    head: 2,
+                    ..Character::default()
+                },
+                energy,
+            );
+            let skeleton = &hunter.scene.rig.as_ref().unwrap().skeleton;
+            for (state, clip) in hunter.clips.iter().enumerate().skip(3) {
+                let contact = contact_fraction(state) * clip.duration;
+                assert!(clip.tracks[0]
+                    .rotation
+                    .as_ref()
+                    .unwrap()
+                    .times
+                    .iter()
+                    .any(|t| (*t - contact).abs() < 1e-5));
+                for frame in 0..=100 {
+                    let pose = clip.sample(skeleton, clip.duration * frame as f32 / 100.0, false);
+                    assert!(skeleton.globals(&pose).iter().all(|m| m.is_finite()));
+                }
+            }
+        }
+    }
     #[test]
     fn class_meshes_switch_after_active_swing_and_remain_finite() {
         use psp_core::inventory::{Inventory, WeaponId};
@@ -755,12 +885,7 @@ mod tests {
         let attack_vertices = hunter.scene.positions.clone();
         hunter.update(&world); // No simulation time passes while paused.
         assert_eq!(hunter.scene.positions, attack_vertices);
-        assert!(
-            hunter.pose[7]
-                .rotation
-                .angle_between(attack_pose[7].rotation)
-                < 1e-5
-        );
+        assert_eq!(hunter.pose[7].rotation, attack_pose[7].rotation);
         assert_eq!(hunter.scene.model.positions, source);
         assert!(hunter.scene.positions.iter().all(|p| p.is_finite()));
         let skeleton = &hunter.scene.rig.as_ref().unwrap().skeleton;

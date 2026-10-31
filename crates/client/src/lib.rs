@@ -28,3 +28,5 @@ pub mod saves;
 pub mod character_ui;
 #[cfg(feature = "viewer")]
 pub mod widgets;
+
+pub mod project;

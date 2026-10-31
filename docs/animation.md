@@ -11,7 +11,7 @@ presentation and never changes collision, damage or quest rewards.
 The original Hunter is a rigid-weighted, 17-bone model with hips, spine, chest,
 head, shoulders, elbows, hands, hips/knees/feet and a right-hand photon blade.
 Its mesh, colors and keyframes are generated from original code and need no
-external game files. Idle, walk, run, three sword swings and three Photon Art clips share the same sampler as
+external game files. Idle, walk, run, sword/Partisan/Knuckles combos and Photon Art clips share the same sampler as
 imported motion. Movement speed blends locomotion states; distance advances the
 gait, and upper-body attack overlays follow the simulation contact phases. Jump, step and
 hurt poses reflect the current player state.
@@ -22,6 +22,22 @@ closed glove and the blade points through the knuckles; the socket's bind
 rotation, mesh and trail endpoints use the same transform. Tests verify grip
 contact across every authored clip. Piercing Thrust compensates at the wrist
 as the elbow extends, keeping the point aligned with the forward thrust.
+
+## Anime-inspired player motion
+
+Attacks now use smoother anticipation, a quick contact phase and a short held
+follow-through. Each attack clip includes a key at its gameplay contact fraction;
+class speed changes scale the active duration while preserving that alignment.
+Torso twists, head counter-rotation, planted legs and a low weight shift strengthen
+the silhouette. Sprint leans forward with trailing arms; steps lower the body
+and tuck the knees. These offsets remain visual and do not move collision.
+
+The [visual editor](engine-guide.md) previews the same generated clips and mesh
+as the game. Its Animation tab supports playback, scrub, speed and bone display.
+Animation energy (0.6–1.4) controls the strength of the attack poses and persists
+in the project. The default is 1.0. Preview playback speed does not change game
+combat; class attack-speed multipliers do. Authoring new poses or changing bone
+curves still means editing `authored_pose` in `hunter.rs`.
 
 ## Classic Dagan
 

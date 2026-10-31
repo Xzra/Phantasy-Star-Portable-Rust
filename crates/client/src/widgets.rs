@@ -91,3 +91,42 @@ pub fn section(rect: Rect, title: &str) {
     presentation::panel(rect, ACCENT);
     label(title, rect.x + 14.0, rect.y + 26.0, 20.0, WHITE);
 }
+
+pub async fn error_screen(title: &str, error: &str) {
+    loop {
+        clear_background(Color::from_rgba(10, 19, 32, 255));
+        label(title, 30.0, 50.0, 28.0, ORANGE);
+        // Wrap errors without requiring UI or platform file-dialog dependencies.
+        let mut line = String::new();
+        let mut y = 95.0;
+        for word in error.split_whitespace() {
+            if measure_text(format!("{line} {word}"), None, 18, 1.0).width > screen_width() - 70.0 {
+                label(&line, 30.0, y, 18.0, WHITE);
+                y += 26.0;
+                line.clear();
+            }
+            if !line.is_empty() {
+                line.push(' ');
+            }
+            line.push_str(word);
+        }
+        label(&line, 30.0, y, 18.0, WHITE);
+        label(
+            "Fix the project file or open a different project. Your files were preserved.",
+            30.0,
+            y + 45.0,
+            17.0,
+            LIGHTGRAY,
+        );
+        if is_quit_requested()
+            || is_key_pressed(KeyCode::Escape)
+            || button(
+                "Close",
+                Rect::new(30.0, screen_height() - 70.0, 160.0, 38.0),
+            )
+        {
+            return;
+        }
+        next_frame().await;
+    }
+}

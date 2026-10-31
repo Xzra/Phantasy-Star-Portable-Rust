@@ -3,6 +3,7 @@
 pub mod character;
 pub mod inventory;
 pub mod profile;
+pub mod settings;
 pub mod shop;
 pub mod weapon;
 pub mod world;

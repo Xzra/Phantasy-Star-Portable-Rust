@@ -129,6 +129,7 @@ pub fn draw_preview(hunter: &mut Hunter, character: &Character, preview: &Previe
         target: vec3(0.0, 0.95, 0.0),
         up: Vec3::Y,
         fovy: 40.0f32.to_radians(),
+        aspect: Some(viewport.w / viewport.h),
         viewport: Some((
             viewport.x as i32,
             (screen_height() - viewport.y - viewport.h) as i32,

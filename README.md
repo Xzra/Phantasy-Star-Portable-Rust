@@ -9,6 +9,18 @@ decoded archive inventories, and a bounded stage layout reader. See
 [Classic download and engine findings](docs/classic-research.md) for verified
 models, motions, Forest/lobby grids, commands, and current limitations.
 
+## Work on the game yourself
+
+The **engine Windows ZIP** in [Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases)
+includes a standalone visual editor, game, starter project, launchers and complete
+Rust source. Open `START-HERE.html`, then `Start-Editor.cmd`. Edit character
+presets, inspect/scrub animations, tune combat and movement, place solid scene
+props, save and press F6 for a playtest that keeps player saves untouched.
+No compiler is needed for project settings; Rust is needed for new code features.
+
+See [Start here](START-HERE.md) and the [engine guide](docs/engine-guide.md) for
+first edits, source locations, build commands and the editor's current scope.
+
 ## Start here: playable solo prototype
 
 Download `phantasy-star.exe` from [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases)

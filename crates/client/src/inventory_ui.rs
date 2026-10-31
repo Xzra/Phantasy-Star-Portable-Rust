@@ -165,7 +165,10 @@ impl InventoryMenu {
         draw_text(
             format!(
                 "Attack power: {}",
-                world.session().hunter().attack_power() + selected.loadout.kind.attack_bonus()
+                ((world.session().hunter().attack_power() + selected.loadout.kind.attack_bonus())
+                    as f32
+                    * world.settings().weapon(selected.loadout.kind.class()).power)
+                    .round() as u32
             ),
             x + 12.0,
             detail_y - 15.0,

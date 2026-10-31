@@ -1,6 +1,7 @@
 //! Solo world simulation. Input, collision, interaction ranges and attack cadence
 //! live here so presentation cannot bypass the gameplay rules.
 use crate::inventory::{Inventory, WeaponId};
+use crate::settings::{GameSettings, SceneProp};
 use crate::weapon::{PhotonArt, WeaponClass, WeaponLoadout};
 use crate::{Command, Event, Location, QuestState, Session};
 
@@ -25,7 +26,7 @@ impl Position {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Obstacle {
     pub center: Position,
     pub half: Position,
@@ -103,6 +104,9 @@ pub struct Attack {
     pub power: u32,
     /// Class captured with power, keeping timing and reach stable during equipment changes.
     pub class: WeaponClass,
+    pub contact: f32,
+    pub range: f32,
+    pub alignment: f32,
     hit: bool,
 }
 impl Attack {
@@ -156,6 +160,10 @@ impl TrialStats {
 #[derive(Debug, Clone, PartialEq)]
 pub struct World {
     character: crate::character::Character,
+    settings: GameSettings,
+    props: Vec<SceneProp>,
+    lobby_obstacles: Vec<Obstacle>,
+    field_obstacles: Vec<Obstacle>,
     inventory: Inventory,
     session: Session,
     position: Position,
@@ -194,6 +202,10 @@ impl Default for World {
     fn default() -> Self {
         Self {
             character: crate::character::Character::default(),
+            settings: GameSettings::default(),
+            props: Vec::new(),
+            lobby_obstacles: LOBBY_OBSTACLES.to_vec(),
+            field_obstacles: FIELD_OBSTACLES.to_vec(),
             inventory: Inventory::default(),
             session: Session::default(),
             position: Position { x: 0.0, z: 5.5 },
@@ -283,6 +295,67 @@ impl World {
             ..Self::default()
         })
     }
+    pub fn settings(&self) -> &GameSettings {
+        &self.settings
+    }
+    pub fn props(&self) -> &[SceneProp] {
+        &self.props
+    }
+    /// Apply a complete validated project atomically. Settings are not character progression.
+    pub fn configure(
+        &mut self,
+        settings: GameSettings,
+        props: Vec<SceneProp>,
+    ) -> Result<(), &'static str> {
+        settings.validate()?;
+        if props.len() > 32 {
+            return Err("A project supports at most 32 additional props.");
+        }
+        for prop in &props {
+            prop.validate()?;
+        }
+        let mut lobby = LOBBY_OBSTACLES.to_vec();
+        let mut field = FIELD_OBSTACLES.to_vec();
+        for p in &props {
+            let obstacle = Obstacle {
+                center: p.center,
+                half: Position {
+                    x: p.size[0] * 0.5,
+                    z: p.size[2] * 0.5,
+                },
+            };
+            if p.location == Location::Lobby {
+                lobby.push(obstacle);
+            } else {
+                field.push(obstacle);
+            }
+        }
+        self.settings = settings;
+        self.props = props;
+        self.lobby_obstacles = lobby;
+        self.field_obstacles = field;
+        Ok(())
+    }
+    pub fn normal_attack_spec(&self, stage: u8) -> crate::weapon::AttackSpec {
+        self.attack_spec(None, stage)
+    }
+    fn attack_spec(&self, art: Option<PhotonArt>, stage: u8) -> crate::weapon::AttackSpec {
+        let mut spec = art.map_or(self.weapon().kind.class().attack(stage), |a| {
+            let a = a.spec();
+            crate::weapon::AttackSpec {
+                duration: a.duration,
+                hit_at: a.hit_at,
+                range: a.range,
+                alignment: a.alignment,
+                power_percent: a.power_percent,
+            }
+        });
+        let balance = self.settings.weapon(self.weapon().kind.class());
+        spec.duration /= balance.speed;
+        spec.hit_at /= balance.speed;
+        spec.range *= balance.reach;
+        spec
+    }
     pub fn character(&self) -> &crate::character::Character {
         &self.character
     }
@@ -328,7 +401,10 @@ impl World {
         &self.inventory
     }
     pub fn weapon_power(&self) -> u32 {
-        self.session.hunter().attack_power() + self.weapon().kind.attack_bonus()
+        (((self.session.hunter().attack_power() + self.weapon().kind.attack_bonus()) as f32
+            * self.settings.weapon(self.weapon().kind.class()).power)
+            .round() as u32)
+            .max(1)
     }
     pub fn equip_weapon(&mut self, id: WeaponId) -> Result<(), &'static str> {
         self.inventory.equip(id)?;
@@ -421,11 +497,11 @@ impl World {
             15.0
         }
     }
-    pub fn obstacles(&self) -> &'static [Obstacle] {
+    pub fn obstacles(&self) -> &[Obstacle] {
         if self.session.location() == Location::Lobby {
-            &LOBBY_OBSTACLES
+            &self.lobby_obstacles
         } else {
-            &FIELD_OBSTACLES
+            &self.field_obstacles
         }
     }
     pub fn interaction_prompt(&self) -> Option<&'static str> {
@@ -562,11 +638,8 @@ impl World {
         } else {
             1
         };
-        let duration = if photon {
-            art.unwrap().spec().duration
-        } else {
-            self.weapon().kind.class().attack(self.combo_stage).duration
-        };
+        let spec = self.attack_spec(art, self.combo_stage);
+        let duration = spec.duration;
         self.attack = Some(Attack {
             stage: self.combo_stage,
             elapsed: 0.0,
@@ -576,6 +649,9 @@ impl World {
             art,
             power: self.weapon_power(),
             class: self.weapon().kind.class(),
+            contact: spec.hit_at,
+            range: spec.range,
+            alignment: spec.alignment,
             hit: false,
         });
         if photon {
@@ -609,7 +685,16 @@ impl World {
                     self.strike_direction = d;
                     events.push(WorldEvent::EnemyWindup);
                 } else {
-                    self.move_enemy(d, if self.session.wave() == 3 { 3.4 } else { 2.8 }, delta);
+                    self.move_enemy(
+                        d,
+                        self.settings.enemy_speed
+                            * if self.session.wave() == 3 {
+                                3.4 / 2.8
+                            } else {
+                                1.0
+                            },
+                        delta,
+                    );
                 }
             }
             EnemyAction::Windup if self.enemy_elapsed >= self.enemy_windup_duration() => {
@@ -637,7 +722,10 @@ impl World {
                             self.stats.evades += 1;
                             events.push(WorldEvent::Evaded);
                         } else if self.invulnerable == 0.0 {
-                            let damage = 18 + 2 * (self.session.wave() - 1) as u32;
+                            let damage = (((18 + 2 * (self.session.wave() - 1) as u32) as f32
+                                * self.settings.enemy_damage)
+                                .round() as u32)
+                                .max(1);
                             self.stats.damage_taken += damage.min(self.session.hunter().health);
                             events.extend(
                                 self.session
@@ -800,7 +888,7 @@ impl World {
         }
         self.combo_window = (self.combo_window - delta).max(0.0);
         if self.attack.is_none() {
-            self.pp = (self.pp + 5.0 * delta).min(100.0);
+            self.pp = (self.pp + self.settings.pp_recovery * delta).min(100.0);
         }
         let movement = normalized(input.movement);
         if self.locked {
@@ -815,10 +903,10 @@ impl World {
         let jump = std::mem::take(&mut self.queued_jump);
         let dodge = std::mem::take(&mut self.queued_dodge);
         if jump && self.height == 0.0 && !self.dodging() && self.hurt_remaining == 0.0 {
-            self.vertical_speed = 7.0;
+            self.vertical_speed = self.settings.jump_speed;
             events.push(WorldEvent::Jump);
         }
-        self.vertical_speed -= 20.0 * delta;
+        self.vertical_speed -= self.settings.gravity * delta;
         self.height = (self.height + self.vertical_speed * delta).max(0.0);
         if self.height == 0.0 {
             self.vertical_speed = 0.0;
@@ -850,9 +938,9 @@ impl World {
             } else if self.attack.is_some() {
                 1.3
             } else if input.sprint {
-                6.5
+                self.settings.sprint_speed
             } else {
-                4.0
+                self.settings.walk_speed
             };
             self.move_player(movement, speed, delta);
         }
@@ -875,27 +963,15 @@ impl World {
         }
         if let Some(mut attack) = self.attack {
             attack.elapsed += delta;
-            let hit_at = if attack.photon {
-                attack.art.unwrap().spec().hit_at
-            } else {
-                attack.class.attack(attack.stage).hit_at
-            };
+            let hit_at = attack.contact;
             if !attack.hit && attack.elapsed >= hit_at {
                 attack.hit = true;
                 let target = direction(self.position, self.enemy_position);
                 let alignment = self.facing.sin() * target.x + self.facing.cos() * target.z;
                 if self.session.location() == Location::TrainingField
                     && self.session.quest() == QuestState::Active
-                    && self.position.distance(self.enemy_position)
-                        <= attack
-                            .art
-                            .map_or(attack.class.attack(attack.stage).range, |a| a.spec().range)
-                    && alignment
-                        >= attack
-                            .art
-                            .map_or(attack.class.attack(attack.stage).alignment, |a| {
-                                a.spec().alignment
-                            })
+                    && self.position.distance(self.enemy_position) <= attack.range
+                    && alignment >= attack.alignment
                     && self.height < 1.6
                 {
                     let base = attack.power;
@@ -977,6 +1053,82 @@ mod tests {
         for _ in 0..n {
             world.step(input, FIXED_STEP);
         }
+    }
+    #[test]
+    fn project_settings_affect_movement_and_freeze_attack_contact_at_start() {
+        let mut w = World::default();
+        let settings = GameSettings {
+            walk_speed: 5.0,
+            ..GameSettings::default()
+        };
+        w.configure(settings, Vec::new()).unwrap();
+        w.position = Position { x: 0.0, z: 0.0 };
+        let start = w.position;
+        ticks(
+            &mut w,
+            60,
+            Input {
+                movement: Position { x: 1.0, z: 0.0 },
+                ..Input::default()
+            },
+        );
+        assert!((w.position.distance(start) - 5.0).abs() < 0.001);
+        let mut w = close_trial();
+        let mut settings = GameSettings::default();
+        settings.sword.speed = 2.0;
+        settings.sword.reach = 1.5;
+        settings.sword.power = 1.5;
+        w.configure(settings, Vec::new()).unwrap();
+        w.step(
+            Input {
+                attack: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        let attack = w.attack.unwrap();
+        assert_eq!(attack.duration, 0.25);
+        assert!((attack.range - 3.9).abs() < 0.001);
+        assert_eq!(attack.contact, 0.09);
+        assert_eq!(attack.power, 18);
+        w.configure(GameSettings::default(), Vec::new()).unwrap();
+        assert_eq!(w.attack.unwrap(), attack);
+        ticks(&mut w, 10, Input::default());
+        assert_eq!(w.session.enemy_health(), ENEMY_MAX_HEALTH - 18);
+    }
+    #[test]
+    fn project_props_collide_and_configuration_rejects_invalid_edits_atomically() {
+        let mut w = World::default();
+        let prop = SceneProp {
+            location: Location::Lobby,
+            center: Position { x: 4.0, z: 0.0 },
+            size: [2.0, 2.0, 2.0],
+            color: [90, 120, 150],
+        };
+        w.configure(GameSettings::default(), vec![prop.clone()])
+            .unwrap();
+        assert_eq!(w.obstacles().len(), LOBBY_OBSTACLES.len() + 1);
+        w.position = Position { x: 2.0, z: 0.0 };
+        ticks(
+            &mut w,
+            60,
+            Input {
+                movement: Position { x: 1.0, z: 0.0 },
+                ..Input::default()
+            },
+        );
+        assert!(w.position.x <= 3.0 - PLAYER_RADIUS + 0.001);
+        let before = w.clone();
+        let mut invalid = prop;
+        invalid.center = TERMINAL;
+        assert!(w.configure(GameSettings::default(), vec![invalid]).is_err());
+        assert_eq!(w, before);
+        let invalid = GameSettings {
+            walk_speed: f32::NAN,
+            ..GameSettings::default()
+        };
+        assert!(w.configure(invalid, Vec::new()).is_err());
+        assert_eq!(w, before);
     }
     #[test]
     fn shop_requires_a_living_hunter_near_the_lobby_counter() {

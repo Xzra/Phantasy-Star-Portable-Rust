@@ -18,7 +18,7 @@ use psp_core::{
     },
     Event, Location, QuestState,
 };
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 const INK: Color = Color::new(0.035, 0.065, 0.11, 1.0);
 const ACCENT: Color = Color::new(0.15, 0.85, 0.95, 1.0);
@@ -38,6 +38,19 @@ fn point(p: Position, y: f32) -> Vec3 {
 }
 
 fn obstacle_height(world: &World, index: usize) -> f32 {
+    let count = if world.session().location() == Location::Lobby {
+        psp_core::world::LOBBY_OBSTACLES.len()
+    } else {
+        psp_core::world::FIELD_OBSTACLES.len()
+    };
+    if index >= count {
+        return world
+            .props()
+            .iter()
+            .filter(|p| p.location == world.session().location())
+            .nth(index - count)
+            .map_or(1.0, |p| p.size[1]);
+    }
     if world.session().location() == Location::Lobby && index < 2 {
         3.0
     } else if world.session().location() == Location::Lobby {
@@ -84,7 +97,7 @@ fn smoke_input(world: &World) -> Input {
     }
     let active = world.session().location() == Location::TrainingField
         && world.session().quest() == QuestState::Active;
-    let reach = world.weapon().kind.class().attack(1).range;
+    let reach = world.normal_attack_spec(1).range;
     let stand_off = (reach - 0.4).min(2.8);
     let goal = if world.session().location() == Location::Lobby {
         TERMINAL
@@ -198,7 +211,12 @@ fn draw_environment(world: &World, environment: &Environment) {
             ACCENT,
         );
     }
-    for (i, obstacle) in world.obstacles().iter().enumerate() {
+    let base_count = if lobby {
+        psp_core::world::LOBBY_OBSTACLES.len()
+    } else {
+        psp_core::world::FIELD_OBSTACLES.len()
+    };
+    for (i, obstacle) in world.obstacles().iter().take(base_count).enumerate() {
         let height = obstacle_height(world, i);
         if !lobby {
             draw_cylinder(
@@ -230,6 +248,17 @@ fn draw_environment(world: &World, environment: &Environment) {
             vec3(obstacle.half.x * 2.0, 0.06, obstacle.half.z * 2.0),
             None,
             if lobby { ACCENT } else { ORANGE },
+        );
+    }
+    for prop in world
+        .props()
+        .iter()
+        .filter(|p| p.location == world.session().location())
+    {
+        presentation::shaded_box(
+            point(prop.center, prop.size[1] * 0.5),
+            Vec3::from_array(prop.size),
+            Color::from_rgba(prop.color[0], prop.color[1], prop.color[2], 255),
         );
     }
     if lobby {
@@ -383,6 +412,32 @@ async fn main() {
     presentation::initialize_font();
     let environment = Environment::default();
     prevent_quit();
+    let options = match psp_client::project::LaunchOptions::parse(std::env::args_os().skip(1)) {
+        Ok(options) => options,
+        Err(error) => {
+            psp_client::widgets::error_screen("Cannot launch project", &error).await;
+            return;
+        }
+    };
+    let project_path = options
+        .project
+        .clone()
+        .unwrap_or_else(psp_client::project::default_path);
+    if options.project.is_some() && !project_path.exists() {
+        psp_client::widgets::error_screen(
+            "Project file not found",
+            &project_path.display().to_string(),
+        )
+        .await;
+        return;
+    }
+    let project = match psp_client::project::ProjectStore::open(project_path) {
+        Ok(store) => store.saved,
+        Err(error) => {
+            psp_client::widgets::error_screen("Cannot load project", &error).await;
+            return;
+        }
+    };
     let diagnostic = [
         "PSP_GAME_SMOKE",
         "PSP_SHOP_SMOKE",
@@ -394,7 +449,8 @@ async fn main() {
     ]
     .iter()
     .any(|name| std::env::var_os(name).is_some());
-    let persistent_run = !diagnostic || std::env::var_os("PSP_SAVE_PATH").is_some();
+    let persistent_run =
+        !options.playtest && (!diagnostic || std::env::var_os("PSP_SAVE_PATH").is_some());
     let (mut save_store, mut world) = if persistent_run {
         saves::default_path()
             .map(SaveStore::open)
@@ -408,8 +464,13 @@ async fn main() {
         (SaveStore::disabled(), World::default())
     };
     if persistent_run && !diagnostic && save_store.is_new() {
-        let Some(character) =
-            psp_client::character_ui::create_character(world.character().clone()).await
+        let Some(character) = psp_client::character_ui::create_character(
+            project
+                .character
+                .character()
+                .expect("project was validated"),
+        )
+        .await
         else {
             return;
         };
@@ -455,6 +516,12 @@ async fn main() {
         };
         world.equip_photon_art(Some(art)).unwrap();
     }
+    project.apply(&mut world).expect("project was validated");
+    if options.playtest {
+        world
+            .set_character(project.character.character().unwrap())
+            .unwrap();
+    }
     let mut hunter = Hunter::default();
     let mut bones = false;
     let mut feedback = Feedback::default();
@@ -463,9 +530,9 @@ async fn main() {
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_default();
     let working_dir = std::env::current_dir().unwrap_or_default();
-    let candidate = std::env::args_os()
-        .nth(1)
-        .map(PathBuf::from)
+    let candidate = options
+        .model
+        .clone()
         .or_else(|| asset_paths::model(&executable_dir, &working_dir));
     let imported = candidate
         .as_ref()
@@ -481,7 +548,7 @@ async fn main() {
     if let Some(scene) = &mut projection {
         scene.place_on_ground(point(world.enemy_position(), 0.0), 1.3);
     }
-    let motion_path = std::env::args_os().nth(2).map(PathBuf::from).or_else(|| {
+    let motion_path = options.motion.clone().or_else(|| {
         candidate
             .as_ref()
             .and_then(|path| asset_paths::motions(path, &executable_dir, &working_dir))
@@ -596,8 +663,8 @@ async fn main() {
     let mut captured_results = false;
     let mut captured_wave2 = false;
     let mut captured_wave3 = false;
-    let mut block_attack = false;
-    let mut block_art = false;
+    let mut block_attack = true;
+    let mut block_art = true;
     let mut frames = 0;
     loop {
         let delta = get_frame_time().clamp(0.0, 0.1);
@@ -972,6 +1039,7 @@ async fn main() {
                 }
                 if button("Return to lobby / keep gear", y + 210.0) {
                     world = World::from_profile(world.profile()).expect("live profile is valid");
+                    project.apply(&mut world).expect("project was validated");
                     inventory_menu = InventoryMenu::default();
                     hunter = Hunter::default();
                     feedback = Feedback::default();

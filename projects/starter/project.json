@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "name": "Hunter Training",
+  "character": {
+    "name": "Hunter",
+    "armor": 0,
+    "accent": 0,
+    "skin": 1,
+    "hair": 0,
+    "head": 0,
+    "build": 1
+  },
+  "gameplay": {
+    "walk_speed": 4.0,
+    "sprint_speed": 6.5,
+    "jump_speed": 7.0,
+    "gravity": 20.0,
+    "pp_recovery": 5.0,
+    "enemy_speed": 2.8,
+    "enemy_damage": 1.0,
+    "animation_energy": 1.0,
+    "sword": { "power": 1.0, "reach": 1.0, "speed": 1.0 },
+    "partisan": { "power": 1.0, "reach": 1.0, "speed": 1.0 },
+    "knuckles": { "power": 1.0, "reach": 1.0, "speed": 1.0 }
+  },
+  "props": []
+}
