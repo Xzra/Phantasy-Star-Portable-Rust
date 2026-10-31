@@ -102,7 +102,9 @@ fn box_part(
         triangles.push([i, j + 8, i + 8]);
     }
     for t in triangles {
-        model.triangles.push(t.map(|v| start + v));
+        model
+            .triangles
+            .push([start + t[0], start + t[2], start + t[1]]);
         model.triangle_uvs.push([None; 3]);
         model.triangle_normals.push([None; 3]);
         model.triangle_materials.push(Some(material));
@@ -360,6 +362,32 @@ impl Hunter {
 mod tests {
     use super::*;
     use psp_core::world::{Input, Position, FIXED_STEP};
+    #[test]
+    fn beveled_armor_faces_have_outward_normals() {
+        let skeleton = Skeleton {
+            bones: vec![Bone {
+                name: "fixture".into(),
+                parent: None,
+                inverse_bind: Mat4::IDENTITY,
+                local_bind: Transform::from_matrix(Mat4::IDENTITY),
+            }],
+        };
+        let mut model = Model::default();
+        let mut skin = Vec::new();
+        box_part(
+            &mut model,
+            &mut skin,
+            &skeleton,
+            0,
+            Vec3::ZERO,
+            Vec3::ONE,
+            0,
+        );
+        for triangle in &model.triangles {
+            let [a, b, c] = triangle.map(|i| Vec3::from_array(model.positions[i]));
+            assert!((b - a).cross(c - a).dot((a + b + c) / 3.0) > 0.0);
+        }
+    }
     #[test]
     fn rigged_mesh_keeps_bind_data_and_changes_pose_without_accumulation() {
         let mut hunter = Hunter::default();
