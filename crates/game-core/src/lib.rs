@@ -2,6 +2,8 @@
 
 pub mod world;
 
+pub const ENEMY_MAX_HEALTH: u32 = 144;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Location {
     Lobby,
@@ -46,6 +48,7 @@ pub enum Command {
     StartQuest,
     Attack,
     ReturnToLobby,
+    RetryQuest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,6 +58,7 @@ pub enum Event {
     HunterDamaged { damage: u32, remaining_health: u32 },
     QuestCompleted { experience: u32 },
     ReturnedToLobby,
+    HunterDefeated,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,32 +107,20 @@ impl Session {
                 }
                 self.location = Location::TrainingField;
                 self.quest = QuestState::Active;
-                self.enemy_health = 36;
+                self.enemy_health = ENEMY_MAX_HEALTH;
                 Ok(vec![Event::QuestStarted])
             }
-            Command::Attack => {
-                if self.quest != QuestState::Active || self.location != Location::TrainingField {
-                    return Err("there is no active enemy to attack");
+            Command::Attack => self.damage_enemy(self.hunter.attack_power()),
+            Command::RetryQuest => {
+                if self.location != Location::TrainingField
+                    || self.quest != QuestState::Active
+                    || self.hunter.health != 0
+                {
+                    return Err("retry is only available after defeat in an active quest");
                 }
-                let damage = self.hunter.attack_power().min(self.enemy_health);
-                self.enemy_health -= damage;
-                let mut events = vec![Event::EnemyDamaged {
-                    damage,
-                    remaining_health: self.enemy_health,
-                }];
-                if self.enemy_health == 0 {
-                    self.quest = QuestState::Complete;
-                    self.hunter.award_experience(100);
-                    events.push(Event::QuestCompleted { experience: 100 });
-                } else {
-                    let damage = 5.min(self.hunter.health);
-                    self.hunter.health -= damage;
-                    events.push(Event::HunterDamaged {
-                        damage,
-                        remaining_health: self.hunter.health,
-                    });
-                }
-                Ok(events)
+                self.hunter.health = self.hunter.max_health();
+                self.enemy_health = ENEMY_MAX_HEALTH;
+                Ok(vec![Event::QuestStarted])
             }
             Command::ReturnToLobby => {
                 if self.location != Location::TrainingField || self.quest != QuestState::Complete {
@@ -140,6 +132,44 @@ impl Session {
             }
         }
     }
+    fn damage_enemy(&mut self, power: u32) -> Result<Vec<Event>, &'static str> {
+        if self.quest != QuestState::Active
+            || self.location != Location::TrainingField
+            || self.hunter.health == 0
+        {
+            return Err("there is no active combat encounter");
+        }
+        let damage = power.min(self.enemy_health);
+        self.enemy_health -= damage;
+        let mut events = vec![Event::EnemyDamaged {
+            damage,
+            remaining_health: self.enemy_health,
+        }];
+        if self.enemy_health == 0 {
+            self.quest = QuestState::Complete;
+            self.hunter.award_experience(100);
+            events.push(Event::QuestCompleted { experience: 100 });
+        }
+        Ok(events)
+    }
+    fn damage_hunter(&mut self, power: u32) -> Vec<Event> {
+        if self.quest != QuestState::Active
+            || self.location != Location::TrainingField
+            || self.hunter.health == 0
+        {
+            return Vec::new();
+        }
+        let damage = power.min(self.hunter.health);
+        self.hunter.health -= damage;
+        let mut events = vec![Event::HunterDamaged {
+            damage,
+            remaining_health: self.hunter.health,
+        }];
+        if self.hunter.health == 0 {
+            events.push(Event::HunterDefeated);
+        }
+        events
+    }
 }
 
 #[cfg(test)]
@@ -150,9 +180,10 @@ mod tests {
     fn solo_quest_rewards_once_and_returns_to_lobby() {
         let mut session = Session::default();
         session.execute(Command::StartQuest).unwrap();
-        session.execute(Command::Attack).unwrap();
-        session.execute(Command::Attack).unwrap();
-        assert_eq!(session.hunter().health, 90);
+        for _ in 0..11 {
+            session.execute(Command::Attack).unwrap();
+        }
+        assert_eq!(session.hunter().health, 100);
         let events = session.execute(Command::Attack).unwrap();
         assert!(events.contains(&Event::QuestCompleted { experience: 100 }));
         assert_eq!(session.hunter().level, 2);
