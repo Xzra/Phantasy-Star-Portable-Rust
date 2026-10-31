@@ -1,7 +1,20 @@
 Phantasy Star Portable Rust - Windows x64 solo game preview
 
+EDITOR AND SOURCE
+For the full handoff, extract phantasy-star-engine-windows-x64.zip. Open
+START-HERE.html, then Start-Editor.cmd. Character, Animation, Gameplay and Scene
+tabs edit the shared project; Save / Ctrl+S, then Play / F6 opens a playtest.
+Playtests never read or write character saves. Ctrl+Z / Ctrl+Y undo / redo.
+The engine ZIP includes source/, its Build-Engine.cmd, and docs/engine-guide.md.
+Project-only changes need no Rust compiler. New code features need Rust and the
+Windows C++ prerequisites described in the guide. Keep the engine files together.
+
 PLAY
-Double-click phantasy-star.exe to enter the orbital lobby. No game installation
+Double-click phantasy-star.exe to begin. A new save opens character creation;
+choose a name, head/body presets and colors in a live preview. Enter or Begin
+adventure confirms; Escape cancels without creating a save. Existing profiles
+keep all gear and progression with the original Hunter appearance.
+No game installation
 is needed. Follow the blue lights to the mission terminal and press E. Approach
 and face the training target, then attack. Defeat it to reach level 2, follow the
 yellow lights to the return pad, and press E to return to the lobby.
@@ -28,11 +41,12 @@ owned PA discs, full bags and insufficient funds are rejected without a charge.
 Currency, purchases and equipment now autosave between launches.
 
 CHARACTER SAVES
-Levels, XP, Meseta, weapons, PA discs and all equipment choices autosave.
+Character identity/appearance, levels, XP, Meseta, weapons, PA discs and equipment autosave.
 F5 or Save progress in the pause menu saves immediately. Quit and window close
 also save. Reopening places your character in the lobby with full HP and PP;
 an interrupted trial starts over, without replaying rewards. Return to lobby /
-keep gear replaces the old New session reset. The level cap is 100.
+keep gear replaces the old New session reset. The level cap is 100. Version 1 saves migrate on loading;
+new writes use version 2 with validated appearance.
 Windows save: %LOCALAPPDATA%\PhantasyStarPortableRust\profile.json
 A previous version is retained as profile.json.bak. Invalid saves are preserved
 and saving is disabled for that run; the pause menu shows save status.
@@ -84,7 +98,9 @@ It downloads/verifies both archives described below and starts the game. The
 standalone EXE instead works with the original Hunter and animated Forest Crawler.
 
 The field is an original forest clearing. The Hunter has beveled armor and a
-17-bone rig with distinct combo and photon clips. F2 toggles bones. Player and
+17-bone rig with distinct combo and photon clips. Attacks now have stronger
+anticipation, fast contact and held follow-through; sprinting uses a forward
+lean and trailing arms. The editor previews these same clips and adjusts energy. F2 toggles bones. Player and
 field art remain placeholders; this is a Classic-inspired prototype with
 original balance, not an exact PSO2 recreation. Character progression is saved.
 Item drops, multiple enemies and multiplayer are not implemented yet.
