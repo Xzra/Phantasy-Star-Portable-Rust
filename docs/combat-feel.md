@@ -19,9 +19,10 @@ and evasion. It is not an exact reconstruction of Classic or NGS mechanics.
 | Q | Toggle lock-on to the current enemy |
 | X + movement | Dodge step; X without direction steps backward |
 | Space | Jump; attacks can be used in the air |
-| F | Original Photon Sweep, costing 35 PP |
+| RMB / F | Activate the sword's equipped Photon Art |
+| Tab | Open weapon slot; click or 1/2/3 equips, 0 clears the slot |
 | E | Terminal, return pad, or retry after defeat |
-| RMB drag / arrows / wheel | Orbit / zoom camera |
+| MMB drag / arrows / wheel | Orbit / zoom camera |
 | Escape | Pause, new session, quit |
 
 ## Combat rules
@@ -37,8 +38,29 @@ The combo resets after a 0.4-second gap after recovery and cycles after stage 3.
 PP starts at 100, recovers at 5 per second while not attacking, and normal hits
 restore 8 PP. Photon Sweep costs 35 PP when it starts, deals 36 damage at level 1
 on contact, and has a 3.5-unit range. The normal range is 2.6. The third normal
-hit and sweep briefly stagger the enemy. Dodge cancels an attack without a PP
+hit and connected Photon Arts briefly stagger the enemy. Dodge cancels an attack without a PP
 refund. Input during hit-stop is retained for the next simulation tick.
+
+## Weapon Photon Art slot
+
+The training sword has one equippable art. Open Tab (or Weapon / Photon Arts
+in the pause menu) and select one of three original skills. The action palette
+shows its name, PP cost and readiness. RMB uses a fresh press; holding it does
+not repeatedly spend PP. F is an equivalent keyboard binding. Camera drag uses
+MMB so activating an art does not move the camera. Equipment menus pause combat.
+
+| Art | PP | Level 1 damage | Range | Contact / duration | Aim |
+| --- | --- | --- | --- | --- | --- |
+| Photon Sweep | 35 | 36 | 3.5 | 0.34 / 0.85 s | All around the player |
+| Rising Cleave | 30 | 48 | 2.8 | 0.45 / 1.00 s | Forward cone |
+| Piercing Thrust | 20 | 24 | 4.2 | 0.22 / 0.58 s | Narrow forward cone |
+
+An empty slot or insufficient PP produces a message without starting an art.
+PP is charged once when the attack begins. A swing captures its art at that
+moment; swapping slots during a paused swing changes subsequent attacks,
+without changing the current swing or charging PP again. Equipment changes
+clear buffered art input. The slot survives retries and extraction/redeployment;
+New session resets it to Sweep. Choices are session-only until saving is added.
 
 The step travels for 0.23 seconds with a 0.65-second cooldown. Its early portion
 avoids attacks; movement still collides with props, map boundaries and the enemy.

@@ -1,5 +1,6 @@
 //! Solo world simulation. Input, collision, interaction ranges and attack cadence
 //! live here so presentation cannot bypass the gameplay rules.
+use crate::weapon::{PhotonArt, WeaponLoadout};
 use crate::{Command, Event, Location, QuestState, Session};
 
 pub const FIXED_STEP: f32 = 1.0 / 60.0;
@@ -92,6 +93,8 @@ pub struct Attack {
     pub duration: f32,
     pub perfect: bool,
     pub photon: bool,
+    /// Captured when the swing starts, so changing the slot cannot alter an active hit.
+    pub art: Option<PhotonArt>,
     hit: bool,
 }
 impl Attack {
@@ -142,6 +145,7 @@ impl TrialStats {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct World {
+    weapon: WeaponLoadout,
     session: Session,
     position: Position,
     facing: f32,
@@ -178,6 +182,7 @@ pub struct World {
 impl Default for World {
     fn default() -> Self {
         Self {
+            weapon: WeaponLoadout::default(),
             session: Session::default(),
             position: Position { x: 0.0, z: 5.5 },
             facing: std::f32::consts::PI,
@@ -231,6 +236,13 @@ fn normalized(input: Position) -> Position {
     }
 }
 impl World {
+    pub fn weapon(&self) -> WeaponLoadout {
+        self.weapon
+    }
+    pub fn equip_photon_art(&mut self, art: Option<PhotonArt>) {
+        self.weapon.photon_art = art;
+        self.buffered_photon = false;
+    }
     pub fn stats(&self) -> &TrialStats {
         &self.stats
     }
@@ -426,6 +438,10 @@ impl World {
         self.stats = TrialStats::default();
     }
     fn begin_attack(&mut self, photon: bool, perfect: bool, events: &mut Vec<WorldEvent>) {
+        let art = if photon { self.weapon.photon_art } else { None };
+        if photon && art.is_none() {
+            return;
+        }
         self.combo_stage = if photon {
             0
         } else if self.combo_window > 0.0 {
@@ -434,7 +450,7 @@ impl World {
             1
         };
         let duration = if photon {
-            0.85
+            art.unwrap().spec().duration
         } else {
             [0.5, 0.52, 0.68][self.combo_stage as usize - 1]
         };
@@ -444,10 +460,11 @@ impl World {
             duration,
             perfect,
             photon,
+            art,
             hit: false,
         });
         if photon {
-            self.pp -= 35.0;
+            self.pp -= art.unwrap().spec().pp;
         }
         self.combo_window = 0.0;
         self.buffered = false;
@@ -644,8 +661,16 @@ impl World {
         self.hurt_remaining = (self.hurt_remaining - delta).max(0.0);
         self.queued_dodge |= input.dodge;
         self.queued_jump |= input.jump;
-        if input.photon_art && self.pp >= 35.0 {
-            self.buffered_photon = true;
+        if input.photon_art {
+            match self.weapon.photon_art {
+                Some(art) if self.pp >= art.spec().pp => self.buffered_photon = true,
+                Some(_) => events.push(WorldEvent::Message(
+                    "Not enough PP for the equipped Photon Art.",
+                )),
+                None => events.push(WorldEvent::Message(
+                    "No Photon Art equipped. Press Tab to open your weapon.",
+                )),
+            }
         }
         if self.hit_stop > 0.0 {
             if press {
@@ -719,7 +744,12 @@ impl World {
                     self.buffered = true;
                     self.buffered_perfect |= attack.timing_window();
                 }
-            } else if self.buffered_photon && self.pp >= 35.0 {
+            } else if self.buffered_photon
+                && self
+                    .weapon
+                    .photon_art
+                    .is_some_and(|a| self.pp >= a.spec().pp)
+            {
                 self.begin_attack(true, false, &mut events);
             } else if press || input.attack || self.buffered {
                 self.begin_attack(false, self.buffered_perfect, &mut events);
@@ -728,7 +758,7 @@ impl World {
         if let Some(mut attack) = self.attack {
             attack.elapsed += delta;
             let hit_at = if attack.photon {
-                0.34
+                attack.art.unwrap().spec().hit_at
             } else {
                 [0.18, 0.2, 0.28][attack.stage as usize - 1]
             };
@@ -739,13 +769,13 @@ impl World {
                 if self.session.location() == Location::TrainingField
                     && self.session.quest() == QuestState::Active
                     && self.position.distance(self.enemy_position)
-                        <= if attack.photon { 3.5 } else { ATTACK_RANGE }
-                    && alignment >= 0.35
+                        <= attack.art.map_or(ATTACK_RANGE, |a| a.spec().range)
+                    && alignment >= attack.art.map_or(0.35, |a| a.spec().alignment)
                     && self.height < 1.6
                 {
                     let base = self.session.hunter().attack_power();
                     let power = if attack.photon {
-                        base * 3
+                        base * attack.art.unwrap().spec().power_percent / 100
                     } else {
                         base * [100, 135, 185][attack.stage as usize - 1] / 100
                     };
@@ -1025,6 +1055,119 @@ mod tests {
         assert!(stepped);
         assert!(w.attack.is_none());
     }
+    #[test]
+    fn equipped_arts_have_distinct_costs_damage_and_contact_times() {
+        for art in PhotonArt::ALL {
+            let mut w = close_trial();
+            w.equip_photon_art(Some(art));
+            let spec = art.spec();
+            w.step(
+                Input {
+                    photon_art: true,
+                    ..Input::default()
+                },
+                FIXED_STEP,
+            );
+            assert_eq!(w.attack.unwrap().art, Some(art));
+            assert!((w.pp - (100.0 - spec.pp)).abs() < 0.001);
+            assert_eq!(w.session.enemy_health(), ENEMY_MAX_HEALTH);
+            ticks(&mut w, 31, Input::default());
+            assert_eq!(
+                w.session.enemy_health(),
+                ENEMY_MAX_HEALTH - 12 * spec.power_percent / 100
+            );
+            // A single activation cannot apply damage again during recovery.
+            ticks(&mut w, 25, Input::default());
+            assert_eq!(
+                w.session.enemy_health(),
+                ENEMY_MAX_HEALTH - 12 * spec.power_percent / 100
+            );
+        }
+    }
+
+    #[test]
+    fn art_slot_changes_preserve_active_attack_and_do_not_spend_pp() {
+        let mut w = close_trial();
+        w.equip_photon_art(Some(PhotonArt::RisingCleave));
+        w.step(
+            Input {
+                photon_art: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        let pp = w.pp;
+        w.equip_photon_art(Some(PhotonArt::PiercingThrust));
+        assert_eq!(w.attack.unwrap().art, Some(PhotonArt::RisingCleave));
+        assert_eq!(w.pp, pp);
+        ticks(&mut w, 35, Input::default());
+        assert_eq!(w.session.enemy_health(), ENEMY_MAX_HEALTH - 48);
+        w.reset_encounter();
+        assert_eq!(w.weapon().photon_art, Some(PhotonArt::PiercingThrust));
+        w.equip_photon_art(None);
+        let pp = w.pp;
+        let events = w.step(
+            Input {
+                photon_art: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        assert!(w.attack.is_none());
+        assert_eq!(w.pp, pp);
+        assert!(events.iter().any(|e| matches!(e, WorldEvent::Message(_))));
+        w.step(
+            Input {
+                attack: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        assert!(!w.attack.unwrap().photon);
+    }
+
+    #[test]
+    fn sweep_hits_behind_but_thrust_requires_aim_and_works_at_longer_range() {
+        for (art, facing, distance, hits) in [
+            (PhotonArt::Sweep, 0.0, 2.1, true),
+            (PhotonArt::PiercingThrust, 0.0, 2.1, false),
+            (PhotonArt::PiercingThrust, std::f32::consts::PI, 4.0, true),
+            (PhotonArt::RisingCleave, std::f32::consts::PI, 4.0, false),
+        ] {
+            let mut w = close_trial();
+            w.position.z = ENEMY.z + distance;
+            w.facing = facing;
+            w.equip_photon_art(Some(art));
+            w.step(
+                Input {
+                    photon_art: true,
+                    ..Input::default()
+                },
+                FIXED_STEP,
+            );
+            ticks(&mut w, 31, Input::default());
+            assert_eq!(w.session.enemy_health() < ENEMY_MAX_HEALTH, hits, "{art:?}");
+        }
+    }
+
+    #[test]
+    fn each_equipped_art_rejects_insufficient_pp_without_starting_an_attack() {
+        for art in PhotonArt::ALL {
+            let mut w = close_trial();
+            w.equip_photon_art(Some(art));
+            w.pp = art.spec().pp - 1.0;
+            w.step(
+                Input {
+                    photon_art: true,
+                    ..Input::default()
+                },
+                FIXED_STEP,
+            );
+            assert!(w.attack.is_none());
+            assert!(!w.buffered_photon);
+        }
+    }
+
     #[test]
     fn photon_art_spends_pp_and_normal_hits_restore_it() {
         let mut w = close_trial();

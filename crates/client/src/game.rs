@@ -8,6 +8,7 @@ use psp_client::{
     scene::{capture_frame, Scene},
 };
 use psp_core::{
+    weapon::PhotonArt,
     world::{
         EnemyAction, Input, Position, World, WorldEvent, ENEMY, FIXED_STEP, RETURN_PAD, TERMINAL,
     },
@@ -112,7 +113,10 @@ fn smoke_input(world: &World) -> Input {
         attack: active && world.position().distance(world.enemy_position()) < 2.6,
         photon_art: active
             && world.attack().is_none()
-            && world.pp() >= 35.0
+            && world
+                .weapon()
+                .photon_art
+                .is_some_and(|a| world.pp() >= a.spec().pp)
             && world.position().distance(world.enemy_position()) < 3.2,
         lock_on: active && !world.locked_on(),
         dodge,
@@ -376,7 +380,7 @@ fn draw_player(world: &World, hunter: &Hunter, bones: bool) {
     hunter.draw(bones);
     if let Some(attack) = world
         .attack()
-        .filter(|a| a.photon && (0.3..0.75).contains(&a.progress()))
+        .filter(|a| a.art == Some(PhotonArt::Sweep) && (0.3..0.75).contains(&a.progress()))
     {
         let radius = 1.0 + (attack.progress() - 0.3) * 5.0;
         draw_cylinder_wires(
@@ -455,9 +459,103 @@ fn button(label: &str, y: f32) -> bool {
     hover && is_mouse_button_pressed(MouseButton::Left)
 }
 
+fn weapon_menu(world: &mut World) -> bool {
+    let width = (screen_width() - 40.0).min(760.0);
+    let x = (screen_width() - width) * 0.5;
+    let y = ((screen_height() - 460.0) * 0.5).max(16.0);
+    draw_text(
+        "TRAINING SWORD / PHOTON ART SLOT",
+        x,
+        y + 26.0,
+        28.0,
+        ACCENT,
+    );
+    draw_text(
+        "Equip one art. RMB or F activates it; normal hits restore PP.",
+        x,
+        y + 55.0,
+        18.0,
+        WHITE,
+    );
+    let keys = [KeyCode::Key1, KeyCode::Key2, KeyCode::Key3];
+    for (i, art) in PhotonArt::ALL.into_iter().enumerate() {
+        let spec = art.spec();
+        let rect = Rect::new(x, y + 78.0 + i as f32 * 82.0, width, 72.0);
+        let selected = world.weapon().photon_art == Some(art);
+        let hover = rect.contains(vec2(mouse_position().0, mouse_position().1));
+        draw_rectangle(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if selected {
+                Color::new(0.1, 0.3, 0.38, 1.0)
+            } else {
+                INK
+            },
+        );
+        draw_rectangle_lines(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if selected { 2.0 } else { 1.0 },
+            if selected || hover { ACCENT } else { GRAY },
+        );
+        draw_text(
+            format!(
+                "{}  {}  /  {:.0} PP  /  {}% power{}",
+                i + 1,
+                spec.name,
+                spec.pp,
+                spec.power_percent,
+                if selected { "  [EQUIPPED]" } else { "" }
+            ),
+            rect.x + 14.0,
+            rect.y + 28.0,
+            22.0,
+            WHITE,
+        );
+        draw_text(
+            spec.description,
+            rect.x + 14.0,
+            rect.y + 53.0,
+            17.0,
+            LIGHTGRAY,
+        );
+        if (hover && is_mouse_button_pressed(MouseButton::Left)) || is_key_pressed(keys[i]) {
+            world.equip_photon_art(Some(art));
+        }
+    }
+    if button("Unequip art  /  0", y + 336.0) || is_key_pressed(KeyCode::Key0) {
+        world.equip_photon_art(None);
+    }
+    draw_text(
+        if world.weapon().photon_art.is_some() {
+            "RMB slot: equipped"
+        } else {
+            "RMB slot: empty"
+        },
+        x,
+        y + 408.0,
+        18.0,
+        ACCENT,
+    );
+    button("Return  /  Tab", y + 422.0)
+}
+
 #[macroquad::main(window_config)]
 async fn main() {
     let mut world = World::default();
+    if let Ok(art) = std::env::var("PSP_SMOKE_ART") {
+        let art = match art.as_str() {
+            "sweep" => PhotonArt::Sweep,
+            "cleave" => PhotonArt::RisingCleave,
+            "thrust" => PhotonArt::PiercingThrust,
+            _ => panic!("PSP_SMOKE_ART must be sweep, cleave or thrust"),
+        };
+        world.equip_photon_art(Some(art));
+    }
     let mut hunter = Hunter::default();
     let mut bones = false;
     let mut feedback = Feedback::default();
@@ -512,6 +610,7 @@ async fn main() {
             .unwrap_or_default(),
     );
     let mut paused = false;
+    let mut weapon_open = false;
     let mut accumulator = 0.0;
     let mut pending_interaction = false;
     let mut pending_attack = false;
@@ -523,6 +622,20 @@ async fn main() {
     let mut yaw = 0.0_f32;
     let mut pitch = 0.4_f32;
     let mut distance = 6.4_f32;
+    if let Ok(preview) = std::env::var("PSP_GAME_PREVIEW") {
+        match preview.as_str() {
+            "weapon" => {
+                paused = true;
+                weapon_open = true;
+            }
+            "grip" => {
+                yaw = 2.7;
+                distance = 3.0;
+                pitch = 0.25;
+            }
+            _ => panic!("PSP_GAME_PREVIEW must be weapon or grip"),
+        }
+    }
     let mut camera_target = point(world.position(), 1.0);
     let mut previous_mouse = mouse_position();
     let mut message = "Welcome aboard. Follow the blue lights to the mission terminal.".to_owned();
@@ -538,10 +651,12 @@ async fn main() {
     let mut captured_wave2 = false;
     let mut captured_wave3 = false;
     let mut block_attack = false;
+    let mut block_art = false;
     let mut frames = 0;
     loop {
         let delta = get_frame_time().clamp(0.0, 0.1);
         if is_key_pressed(KeyCode::Escape) {
+            weapon_open = false;
             paused = !paused;
             accumulator = 0.0;
             pending_interaction = false;
@@ -552,18 +667,37 @@ async fn main() {
             pending_art = false;
             pending_heal = false;
         }
+        if is_key_pressed(KeyCode::Tab) {
+            weapon_open = !weapon_open;
+            paused = weapon_open;
+            accumulator = 0.0;
+            pending_interaction = false;
+            pending_attack = false;
+            pending_dodge = false;
+            pending_jump = false;
+            pending_lock = false;
+            pending_art = false;
+            pending_heal = false;
+            block_attack = true;
+            block_art = true;
+        }
         if paused && is_key_pressed(KeyCode::Enter) {
             paused = false;
+            weapon_open = false;
         }
         if paused {
             block_attack = true;
+            block_art = true;
         }
         if !is_key_down(KeyCode::J) && !is_mouse_button_down(MouseButton::Left) {
             block_attack = false;
         }
+        if !is_key_down(KeyCode::F) && !is_mouse_button_down(MouseButton::Right) {
+            block_art = false;
+        }
         let mouse = mouse_position();
         if !paused {
-            if is_mouse_button_down(MouseButton::Right) {
+            if is_mouse_button_down(MouseButton::Middle) {
                 yaw -= (mouse.0 - previous_mouse.0) * 0.008;
                 pitch = (pitch + (mouse.1 - previous_mouse.1) * 0.006).clamp(0.18, 1.15);
             }
@@ -586,7 +720,8 @@ async fn main() {
             pending_dodge |= is_key_pressed(KeyCode::X);
             pending_jump |= is_key_pressed(KeyCode::Space);
             pending_lock |= is_key_pressed(KeyCode::Q);
-            pending_art |= is_key_pressed(KeyCode::F);
+            pending_art |= !block_art
+                && (is_key_pressed(KeyCode::F) || is_mouse_button_pressed(MouseButton::Right));
             pending_heal |= is_key_pressed(KeyCode::H);
             accumulator = (accumulator + delta).min(FIXED_STEP * 6.0);
             while accumulator >= FIXED_STEP {
@@ -784,38 +919,48 @@ async fn main() {
                 screen_height(),
                 Color::new(0.0, 0.02, 0.04, 0.85),
             );
-            let y = screen_height() / 2.0 - 140.0;
-            let label = "SOLO SESSION PAUSED";
-            let w = measure_text(label, None, 30, 1.0).width;
-            draw_text(label, (screen_width() - w) / 2.0, y, 30.0, ACCENT);
-            if button("Resume  /  Enter", y + 30.0) {
-                paused = false;
+            if weapon_open {
+                if weapon_menu(&mut world) {
+                    weapon_open = false;
+                    paused = false;
+                }
+            } else {
+                let y = screen_height() / 2.0 - 170.0;
+                let label = "SOLO SESSION PAUSED";
+                let w = measure_text(label, None, 30, 1.0).width;
+                draw_text(label, (screen_width() - w) / 2.0, y, 30.0, ACCENT);
+                if button("Resume  /  Enter", y + 30.0) {
+                    paused = false;
+                }
+                if button("Weapon / Photon Arts  /  Tab", y + 90.0) {
+                    weapon_open = true;
+                }
+                if button("New session", y + 150.0) {
+                    world = World::default();
+                    hunter = Hunter::default();
+                    feedback = Feedback::default();
+                    motion.reset();
+                    paused = false;
+                    accumulator = 0.0;
+                    pending_interaction = false;
+                    pending_attack = false;
+                    pending_dodge = false;
+                    pending_jump = false;
+                    pending_lock = false;
+                    pending_art = false;
+                    pending_heal = false;
+                    camera_target = point(world.position(), 1.0);
+                    message = "New solo session started.".to_owned();
+                    message_time = 4.0;
+                }
+                if button("Quit", y + 210.0) || is_key_pressed(KeyCode::Q) {
+                    break;
+                }
+                let note =
+                    "Progress lasts for this session. Saving and multiplayer are not implemented.";
+                let w = measure_text(note, None, 17, 1.0).width;
+                draw_text(note, (screen_width() - w) / 2.0, y + 286.0, 17.0, LIGHTGRAY);
             }
-            if button("New session", y + 90.0) {
-                world = World::default();
-                hunter = Hunter::default();
-                feedback = Feedback::default();
-                motion.reset();
-                paused = false;
-                accumulator = 0.0;
-                pending_interaction = false;
-                pending_attack = false;
-                pending_dodge = false;
-                pending_jump = false;
-                pending_lock = false;
-                pending_art = false;
-                pending_heal = false;
-                camera_target = point(world.position(), 1.0);
-                message = "New solo session started.".to_owned();
-                message_time = 4.0;
-            }
-            if button("Quit", y + 150.0) || is_key_pressed(KeyCode::Q) {
-                break;
-            }
-            let note =
-                "Progress lasts for this session. Saving and multiplayer are not implemented.";
-            let w = measure_text(note, None, 17, 1.0).width;
-            draw_text(note, (screen_width() - w) / 2.0, y + 226.0, 17.0, LIGHTGRAY);
         }
         frames += 1;
         if smoke {

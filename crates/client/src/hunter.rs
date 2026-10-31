@@ -6,6 +6,7 @@ use psp_assets::{
     rig::{Bone, BoneTrack, Channel, Clip, Rig, Skeleton, Transform},
     Model,
 };
+use psp_core::weapon::PhotonArt;
 use psp_core::world::World;
 
 pub struct Hunter {
@@ -36,14 +37,20 @@ const BONES: [(&str, Option<usize>, [f32; 3]); 17] = [
     ("right_hip", Some(0), [0.18, -0.05, 0.0]),
     ("right_knee", Some(13), [0.0, -0.38, 0.0]),
     ("right_foot", Some(14), [0.0, -0.36, 0.07]),
-    ("photon_blade", Some(9), [0.0, -0.05, 0.12]),
+    ("sword_grip", Some(9), [0.0, -0.02, 0.0]),
 ];
 fn make_skeleton() -> Skeleton {
     let mut bones: Vec<Bone> = Vec::new();
     for (name, parent, position) in BONES {
         let local_bind = Transform {
             translation: position.into(),
-            rotation: Quat::IDENTITY,
+            // The handle sits inside the palm. Blade +Y points through the
+            // knuckles (+Z), rather than back along the forearm.
+            rotation: if name == "sword_grip" {
+                Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)
+            } else {
+                Quat::IDENTITY
+            },
             scale: Vec3::ONE,
         };
         let global = parent.map_or(local_bind.matrix(), |p| {
@@ -126,6 +133,28 @@ fn authored_pose(skeleton: &Skeleton, state: usize, t: f32) -> Vec<Transform> {
         pose[7].rotation = Quat::from_euler(EulerRot::XYZ, -1.3, 0.0, 0.5);
         pose[8].rotation = Quat::from_rotation_x(-0.2);
     }
+    if state == 7 {
+        let lift = if t < 0.45 {
+            t / 0.45
+        } else {
+            (1.0 - (t - 0.45) / 0.55).max(0.0)
+        };
+        pose[7].rotation = Quat::from_euler(EulerRot::XYZ, -0.45 - 1.9 * lift, 0.0, 0.18);
+        pose[8].rotation = Quat::from_rotation_x(-0.35);
+        pose[1].rotation = Quat::from_rotation_x(-0.18 * lift);
+    }
+    if state == 8 {
+        let reach = if t < 0.38 {
+            t / 0.38
+        } else {
+            (1.0 - (t - 0.38) / 0.62).max(0.0)
+        };
+        pose[7].rotation = Quat::from_euler(EulerRot::XYZ, -0.45 - 0.95 * reach, -0.12, 0.1);
+        pose[8].rotation = Quat::from_rotation_x(-1.1 * (1.0 - reach));
+        // Keep the point on the thrust line as the elbow extends.
+        pose[9].rotation = Quat::from_rotation_x(0.45 + 0.95 * reach + 1.1 * (1.0 - reach));
+        pose[1].rotation = Quat::from_rotation_y(-0.25 * reach);
+    }
     pose
 }
 fn make_clips(skeleton: &Skeleton) -> Vec<Clip> {
@@ -137,6 +166,8 @@ fn make_clips(skeleton: &Skeleton) -> Vec<Clip> {
         ("Hunter slash II", 0.52, 4),
         ("Hunter cleave III", 0.68, 5),
         ("Photon sweep", 0.85, 6),
+        ("Rising cleave", 1.0, 7),
+        ("Piercing thrust", 0.58, 8),
     ]
     .into_iter()
     .map(|(name, duration, state)| {
@@ -216,6 +247,9 @@ impl Default for Hunter {
         part(16, vec3(0.0, 0.0, 0.0), vec3(0.09, 0.24, 0.08), 1);
         part(16, vec3(0.0, 0.13, 0.0), vec3(0.28, 0.06, 0.1), 3);
         part(16, vec3(0.0, 0.67, 0.0), vec3(0.1, 1.0, 0.04), 2);
+        // A visible thumb and curled fingers close around the handle.
+        part(9, vec3(-0.065, -0.065, 0.0), vec3(0.055, 0.065, 0.14), 3);
+        part(9, vec3(0.07, 0.015, 0.035), vec3(0.05, 0.08, 0.08), 3);
         let materials=MaterialLibrary::from_mtl("newmtl armor\nKd 0.12 0.55 0.68\nnewmtl joint\nKd 0.09 0.14 0.2\nnewmtl light\nKd 0.3 0.95 1\nnewmtl trim\nKd 0.6 0.72 0.8").unwrap();
         let clips = make_clips(&skeleton);
         let pose = skeleton.bind_pose();
@@ -259,11 +293,19 @@ impl Hunter {
             .collect();
         if let Some(attack) = world.attack() {
             let index = if attack.photon {
-                6
+                match attack.art.unwrap() {
+                    PhotonArt::Sweep => 6,
+                    PhotonArt::RisingCleave => 7,
+                    PhotonArt::PiercingThrust => 8,
+                }
             } else {
                 2 + attack.stage as usize
             };
-            let pose = self.clips[index].sample(skeleton, attack.elapsed, false);
+            let pose = self.clips[index].sample(
+                skeleton,
+                attack.progress() * self.clips[index].duration,
+                false,
+            );
             let weight =
                 (attack.progress() / 0.1).min(1.0) * ((1.0 - attack.progress()) / 0.15).min(1.0);
             for i in (1..=9).chain(std::iter::once(16)) {
@@ -311,6 +353,26 @@ impl Hunter {
 mod tests {
     use super::*;
     use psp_core::world::{Input, Position, FIXED_STEP};
+    #[test]
+    fn sword_grip_stays_inside_the_palm_across_every_authored_clip() {
+        let hunter = Hunter::default();
+        let skeleton = &hunter.scene.rig.as_ref().unwrap().skeleton;
+        for clip in &hunter.clips {
+            for fraction in [0.0, 0.125, 0.25, 0.4, 0.55, 0.75, 1.0] {
+                let globals =
+                    skeleton.globals(&clip.sample(skeleton, clip.duration * fraction, false));
+                let palm = globals[9].transform_point3(vec3(0.0, -0.02, 0.0));
+                assert!(
+                    palm.distance(globals[16].transform_point3(Vec3::ZERO)) < 1e-5,
+                    "{}",
+                    clip.name
+                );
+                let blade = globals[16].transform_vector3(Vec3::Y).normalize();
+                let knuckles = globals[9].transform_vector3(Vec3::Z).normalize();
+                assert!(blade.dot(knuckles) > 0.999);
+            }
+        }
+    }
     #[test]
     fn beveled_armor_faces_have_outward_normals() {
         let skeleton = Skeleton {

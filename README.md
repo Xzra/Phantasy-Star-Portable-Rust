@@ -24,9 +24,10 @@ cargo run --features viewer --bin phantasy-star -- /path/to/dagan.ice
 ```
 
 WASD moves, Shift sprints, Space jumps, Q locks on, and X steps. Left mouse or
-J attacks; F uses the original Photon Sweep for 35 PP. H uses a recovery charge.
+J attacks; RMB or F uses the sword's equipped Photon Art. Tab opens the weapon
+slot to equip Sweep, Rising Cleave, or Piercing Thrust. H uses a recovery charge.
 Time a fresh attack press when the timing ring turns orange for a stronger follow-up. E interacts or retries
-after defeat. Hold RMB and drag, or use arrows, to orbit; scroll to zoom. Escape
+after defeat. Hold MMB and drag, or use arrows, to orbit; scroll to zoom. Escape
 opens the pause menu.
 
 The combat pass adds three sword swings, PP recovery through normal hits, timed
@@ -41,7 +42,8 @@ motion packs use basic joint animation; the standalone Forest Crawler is also
 rigged and animated. The enemy HUD shows which motion set is active.
 
 This is a Classic-inspired prototype with original balance. Player/field art
-remains provisional; equipment, saving, simultaneous multi-enemy combat and multiplayer are
+remains provisional; the sword has one equippable PA slot, while weapon inventory,
+saving, simultaneous multi-enemy combat and multiplayer are
 future work. See [combat feel](docs/combat-feel.md), [solo gameplay](docs/solo-game.md)
 and [rigging and animation](docs/animation.md).
 

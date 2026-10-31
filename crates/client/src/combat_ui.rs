@@ -324,15 +324,23 @@ pub fn hud(
         LIGHTGRAY,
     );
     let center = w * 0.5 + 35.0;
+    let art = world.weapon().photon_art;
+    let art_label = art.map_or("EMPTY SLOT".to_owned(), |a| {
+        format!("{} / {:.0} PP", a.spec().short_name, a.spec().pp)
+    });
     for (i, (key, label, ready)) in [
         ("LMB / J", "SWORD", true),
-        ("F", "SWEEP / 35 PP", world.pp() >= 35.0),
+        (
+            "RMB / F",
+            art_label.as_str(),
+            art.is_some_and(|a| world.pp() >= a.spec().pp),
+        ),
         ("X", "STEP", world.dodge_ready()),
     ]
     .into_iter()
     .enumerate()
     {
-        let x = center - 145.0 + i as f32 * 101.0;
+        let x = center - 175.0 + i as f32 * 121.0;
         let y = h - 94.0;
         let active = match i {
             0 => world.attack().is_some_and(|a| !a.photon),
@@ -342,7 +350,7 @@ pub fn hud(
         draw_rectangle(
             x,
             y,
-            96.0,
+            116.0,
             69.0,
             if active {
                 Color::new(0.12, 0.38, 0.48, 0.96)
@@ -353,7 +361,7 @@ pub fn hud(
         draw_rectangle_lines(
             x,
             y,
-            96.0,
+            116.0,
             69.0,
             if active { 2.0 } else { 1.0 },
             if ready { CYAN } else { GRAY },
@@ -378,7 +386,7 @@ pub fn hud(
             }
         }
     }
-    text_right("RMB / arrows: camera", w - 18.0, h - 68.0, 15, LIGHTGRAY);
+    text_right("MMB / arrows: camera", w - 18.0, h - 68.0, 15, LIGHTGRAY);
     text_right(
         "Wheel: zoom   Esc: pause",
         w - 18.0,
@@ -386,7 +394,7 @@ pub fn hud(
         15,
         LIGHTGRAY,
     );
-    text_right("F2: bones", w - 18.0, h - 24.0, 15, LIGHTGRAY);
+    text_right("Tab: weapon   F2: bones", w - 18.0, h - 24.0, 15, LIGHTGRAY);
     if world.defeated() {
         draw_rectangle(0.0, h * 0.37, w, 100.0, Color::new(0.1, 0.01, 0.03, 0.9));
         let label = "INCAPACITATED / E TO RETRY";

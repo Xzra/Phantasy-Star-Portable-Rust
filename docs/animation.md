@@ -11,11 +11,17 @@ presentation and never changes collision, damage or quest rewards.
 The original Hunter is a rigid-weighted, 17-bone model with hips, spine, chest,
 head, shoulders, elbows, hands, hips/knees/feet and a right-hand photon blade.
 Its mesh, colors and keyframes are generated from original code and need no
-external game files. Idle, walk, run, three sword swings and photon sweep clips share the same sampler as
+external game files. Idle, walk, run, three sword swings and three Photon Art clips share the same sampler as
 imported motion. Movement speed blends locomotion states; distance advances the
 gait, and upper-body attack overlays follow the simulation contact phases. Jump, step and
 hurt poses reflect the current player state.
 Escape pauses simulation and animation. F2 toggles joint visualization.
+
+The sword has a dedicated right-palm grip socket. Its handle intersects the
+closed glove and the blade points through the knuckles; the socket's bind
+rotation, mesh and trail endpoints use the same transform. Tests verify grip
+contact across every authored clip. Piercing Thrust compensates at the wrist
+as the elbow extends, keeping the point aligned with the forward thrust.
 
 ## Classic Dagan
 

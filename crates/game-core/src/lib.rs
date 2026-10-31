@@ -1,5 +1,6 @@
 //! Rendering-independent solo gameplay. A future server can own the same session.
 
+pub mod weapon;
 pub mod world;
 
 pub const ENEMY_MAX_HEALTH: u32 = 144;

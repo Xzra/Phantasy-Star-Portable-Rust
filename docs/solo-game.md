@@ -10,7 +10,8 @@ are procedural; no PSO2 installation or downloaded assets are required.
    strengthens the next swing. Hold to repeat untimed attacks.
 3. X steps in your movement direction (backward if stationary); Space jumps.
    Avoid the enemy's committed ground wedge. It now chases, telegraphs and lunges.
-4. F uses Photon Sweep for 35 PP. Normal hits restore 8 PP; PP also recovers
+4. Tab opens the sword's Photon Art slot. Equip an art with a click or 1/2/3;
+   0 clears the slot. RMB or F activates the equipped art. Normal hits restore 8 PP; PP also recovers
    between attacks. H uses one of three recovery charges for up to 40 HP.
 5. Clear three waves, including a faster final enemy, for 100 XP and level 2.
    Each wave break lasts two seconds; the next spawn restores 25 PP. The final
@@ -20,7 +21,7 @@ are procedural; no PSO2 installation or downloaded assets are required.
    After extraction, E at the lobby terminal redeploys while preserving session level.
 7. Escape pauses. Choose New session to reset and play again.
 
-WASD moves relative to the camera; Shift sprints. Right-mouse dragging or arrows
+WASD moves relative to the camera; Shift sprints. Middle-mouse dragging or arrows
 orbit, and the wheel zooms. Movement collides with walls, props, the terminal and
 the active enemy. Lock-on keeps facing and camera on the target while strafing.
 The original Hunter has a 17-bone rig, distinct sword clips and attached blade.
@@ -57,7 +58,7 @@ to capture just the initial scene after three frames. The output folder must exi
 ## Next steps
 
 The current quest is a three-wave sequence of single enemies with simple local steering. Next
-work is richer player/field art, equipment, multiple enemies and quest reuse,
+work is richer player/field art, weapon inventory, multiple enemies and quest reuse,
 then persistence before networking. There is no navigation mesh or imported PSO2
 player character yet.
 
