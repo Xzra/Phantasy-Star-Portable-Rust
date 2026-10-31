@@ -46,7 +46,7 @@ Jumping uses simple vertical physics on a flat floor; this is not platforming or
 aerial enemy navigation. Brief hit-stop, attached sword trails, damage numbers,
 and slight camera shake support impact feedback.
 
-The enemy has 144 HP and approaches at 2.8 units/second. At close range it commits
+The first-wave enemy has 144 HP and approaches at 2.8 units/second. At close range it commits
 to a direction, telegraphs for 0.65 seconds, lunges, checks its attack arc once,
 and recovers for 0.85 seconds. A connected strike deals 18 damage; hitting the
 enemy no longer causes automatic counter damage. Its native movement, attack,
@@ -55,7 +55,7 @@ the committed direction. This is one local steering enemy, without a navigation
 mesh or multiple targets. It can get held up by complex prop arrangements.
 
 Defeat stops player actions. E restarts the encounter with full health, PP and
-enemy HP, without awarding XP. Victory awards 100 XP once, raises the Hunter to
+enemy HP, without awarding XP. Victory awards 100 XP once per trial, raises the Hunter to
 level 2, and unlocks the return pad. Progress remains session-only.
 
 ## Presentation and validation
@@ -72,3 +72,31 @@ The graphical smoke driver follows the moving enemy, locks on, uses normal and
 photon attacks, dodges windups, and returns to the lobby. It uses the same input
 and simulation paths as player controls. Run it as described in
 [solo gameplay](solo-game.md), with or without the optional Dagan archives.
+
+## Three-wave trial and recovery
+
+The trial now advances through three sequential enemies: 144, 168 and 192 HP.
+Each clear has a two-second break before the next spawn and restores 25 PP when
+the next wave begins. Spawns choose a clear position at least three units from
+the Hunter. The final enemy approaches at 3.4 units/second, telegraphs for 0.5
+seconds, lunges faster and deals 22 damage. Earlier-wave telegraphs remain 0.65
+seconds; wave 2 deals 20 damage. This is a sequence of single enemies, not
+simultaneous multi-target combat.
+
+H instantly uses one of three recovery charges for up to 40 HP. Full health,
+no charges, defeat or being outside an active trial prevents use without wasting
+a charge. Healing cancels the current attack. Charges refill on deployment or
+retry. A hit flashes the screen edge, and successful healing shows a green number.
+
+The final clear displays elapsed simulation time, defeats, connected timed hits,
+evades, damage taken and charges used. The original prototype score is
+`max(0, 1000 + timed_hits*80 + evades*60 - damage*5 - heals*100 - seconds*5)`.
+Ranks are S at 900, A at 700, B at 450, otherwise C. This is local practice
+feedback, not PSO2's scoring formula. Empty swings cannot count as timed hits.
+The timer stops at final victory; XP is issued only once for the whole trial.
+
+After returning to the lobby, E at the mission terminal deploys again while
+preserving the current session's level and XP. Defeat/retry restarts at wave 1
+with full health, PP and recovery charges, and clears the trial statistics.
+The current run's results are cleared on extraction or a new deployment. There
+is still no disk save or cross-session progression.

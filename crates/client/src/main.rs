@@ -19,7 +19,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             println!("Hunter enters the lobby: {:?}", session.hunter());
             for event in session.execute(Command::StartQuest)? { println!("{event:?}"); }
             while session.quest() == QuestState::Active {
-                for event in session.execute(Command::Attack)? { println!("{event:?}"); }
+                for event in session.execute(if session.enemy_health()==0 {Command::NextWave}else{Command::Attack})? { println!("{event:?}"); }
             }
             session.execute(Command::ReturnToLobby)?;
             println!("Back in {:?}: {:?}", session.location(), session.hunter());

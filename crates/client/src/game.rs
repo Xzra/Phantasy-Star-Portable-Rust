@@ -89,7 +89,7 @@ fn smoke_input(world: &World) -> Input {
     let distance = world.position().distance(goal);
     let dodge = active
         && world.enemy_action() == EnemyAction::Windup
-        && world.enemy_elapsed() > 0.48
+        && world.enemy_elapsed() > world.enemy_windup_duration() - 0.17
         && world.dodge_ready();
     Input {
         movement: if dodge {
@@ -114,6 +114,7 @@ fn smoke_input(world: &World) -> Input {
             && world.position().distance(world.enemy_position()) < 3.2,
         lock_on: active && !world.locked_on(),
         dodge,
+        heal: active && world.session().hunter().health <= 60 && world.session().mates() > 0,
         ..Input::default()
     }
 }
@@ -389,7 +390,7 @@ fn draw_player(world: &World, hunter: &Hunter, bones: bool) {
 
 fn draw_enemy(world: &World, model: Option<&Scene>, hit_flash: f32, death_visible: bool) {
     if world.session().location() != Location::TrainingField
-        || (world.session().quest() != QuestState::Active && !death_visible)
+        || (world.session().enemy_health() == 0 && !death_visible)
     {
         return;
     }
@@ -534,6 +535,7 @@ async fn main() {
     let mut pending_jump = false;
     let mut pending_lock = false;
     let mut pending_art = false;
+    let mut pending_heal = false;
     let mut yaw = 0.0_f32;
     let mut pitch = 0.4_f32;
     let mut distance = 6.4_f32;
@@ -548,6 +550,9 @@ async fn main() {
     let mut captured_field = false;
     let mut captured_hit = false;
     let mut captured_death = false;
+    let mut captured_results = false;
+    let mut captured_wave2 = false;
+    let mut captured_wave3 = false;
     let mut block_attack = false;
     let mut frames = 0;
     loop {
@@ -561,6 +566,7 @@ async fn main() {
             pending_jump = false;
             pending_lock = false;
             pending_art = false;
+            pending_heal = false;
         }
         if paused && is_key_pressed(KeyCode::Enter) {
             paused = false;
@@ -597,6 +603,7 @@ async fn main() {
             pending_jump |= is_key_pressed(KeyCode::Space);
             pending_lock |= is_key_pressed(KeyCode::Q);
             pending_art |= is_key_pressed(KeyCode::F);
+            pending_heal |= is_key_pressed(KeyCode::H);
             accumulator = (accumulator + delta).min(FIXED_STEP * 6.0);
             while accumulator >= FIXED_STEP {
                 let location = world.session().location();
@@ -614,6 +621,7 @@ async fn main() {
                         jump: pending_jump,
                         lock_on: pending_lock,
                         photon_art: pending_art,
+                        heal: pending_heal,
                     }
                 };
                 let events = world.step(input, FIXED_STEP);
@@ -623,13 +631,40 @@ async fn main() {
                 pending_jump = false;
                 pending_lock = false;
                 pending_art = false;
+                pending_heal = false;
                 for event in events {
                     match event {
                         WorldEvent::Gameplay(Event::QuestStarted) => {
                             motion.reset();
+                            feedback = Feedback::default();
                             message =
-                                "Combat trial / Q lock-on, X step, F photon sweep.".to_owned();
+                                "Hunter trial / 3 waves / H to heal / Q to lock on.".to_owned();
                             message_time = 4.0;
+                        }
+                        WorldEvent::Gameplay(Event::EnemyDefeated { wave }) => {
+                            motion.die(world.time());
+                            message = if wave < psp_core::TRIAL_WAVES {
+                                format!("WAVE {} CLEAR / Next wave incoming", wave)
+                            } else {
+                                "TRIAL CLEAR".to_owned()
+                            };
+                            message_time = 2.0;
+                        }
+                        WorldEvent::Gameplay(Event::WaveStarted { wave }) => {
+                            motion.reset();
+                            feedback = Feedback::default();
+                            message = format!(
+                                "WAVE {} / {}{}",
+                                wave,
+                                psp_core::TRIAL_WAVES,
+                                if wave == 3 { " / ENHANCED ENEMY" } else { "" }
+                            );
+                            message_time = 2.5;
+                        }
+                        WorldEvent::Gameplay(Event::HunterHealed { amount, .. }) => {
+                            feedback.heal(&world, amount);
+                            message = format!("RECOVERY / +{} HP", amount);
+                            message_time = 1.2;
                         }
                         WorldEvent::Gameplay(Event::EnemyDamaged { damage, .. }) => {
                             feedback.damage(&world, damage);
@@ -639,7 +674,7 @@ async fn main() {
                         WorldEvent::Gameplay(Event::QuestCompleted { .. }) => {
                             motion.die(world.time());
                             message = format!(
-                                "TRAINING CLEAR  /  Level {}  /  +100 XP",
+                                "TRIAL CLEAR  /  Level {}  /  +100 XP",
                                 world.session().hunter().level
                             );
                             message_time = 5.0;
@@ -776,6 +811,7 @@ async fn main() {
                 pending_jump = false;
                 pending_lock = false;
                 pending_art = false;
+                pending_heal = false;
                 camera_target = point(world.position(), 1.0);
                 message = "New solo session started.".to_owned();
                 message_time = 4.0;
@@ -796,6 +832,18 @@ async fn main() {
                 let path = Path::new(path);
                 let suffix = if complete {
                     Some("complete")
+                } else if !captured_results
+                    && world.session().location() == Location::TrainingField
+                    && world.session().quest() == QuestState::Complete
+                {
+                    captured_results = true;
+                    Some("results")
+                } else if !captured_wave2 && world.session().wave() == 2 {
+                    captured_wave2 = true;
+                    Some("wave2")
+                } else if !captured_wave3 && world.session().wave() == 3 {
+                    captured_wave3 = true;
+                    Some("wave3")
                 } else if !captured_death
                     && world.session().location() == Location::TrainingField
                     && world.session().quest() == QuestState::Complete
@@ -839,7 +887,7 @@ async fn main() {
                 );
                 break;
             }
-            if world.time() > 30.0 {
+            if world.time() > 90.0 {
                 eprintln!("Solo smoke timed out");
                 std::process::exit(1);
             }

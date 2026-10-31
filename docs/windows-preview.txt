@@ -8,13 +8,16 @@ yellow lights to the return pad, and press E to return to the lobby.
 
 WASD: move     Shift: sprint     Space: jump     Q: lock on
 Left mouse / J: sword combo     X: step          F: photon sweep (35 PP)
-E: interact / retry after defeat
+H: recovery (3 charges, up to 40 HP)     E: interact / retry after defeat
 Right mouse drag / arrows: orbit camera     Wheel: zoom     Escape: pause
 
 Time a fresh normal-attack press when the ring turns orange for a stronger
 follow-up. Holding repeats untimed attacks. Normal hits restore PP. Avoid the
 enemy's ground wedge: it chases, winds up, lunges and recovers. Defeat allows E
-to retry; victory awards XP and unlocks the return pad.
+to retry from wave 1. Clear three waves for XP and a scored results panel.
+The final enemy is faster. Two-second wave breaks restore 25 PP at the next spawn.
+Return through the pad, then E at the lobby terminal deploys another trial while
+keeping your level for the current session.
 
 For native Dagan models and motion, extract the ZIP and run Play-Dagan.cmd.
 It downloads/verifies both archives described below and starts the game. The

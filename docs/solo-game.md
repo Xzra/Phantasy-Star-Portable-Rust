@@ -11,10 +11,14 @@ are procedural; no PSO2 installation or downloaded assets are required.
 3. X steps in your movement direction (backward if stationary); Space jumps.
    Avoid the enemy's committed ground wedge. It now chases, telegraphs and lunges.
 4. F uses Photon Sweep for 35 PP. Normal hits restore 8 PP; PP also recovers
-   between attacks. Clear the encounter for 100 XP and level 2.
-5. Approach the return pad and press E. Returning restores HP. If defeated, E
-   restarts the encounter with full health and PP, without rewarding XP.
-6. Escape pauses. Choose New session to reset and play again.
+   between attacks. H uses one of three recovery charges for up to 40 HP.
+5. Clear three waves, including a faster final enemy, for 100 XP and level 2.
+   Each wave break lasts two seconds; the next spawn restores 25 PP. The final
+   results panel records time, damage, timed hits, evades, healing and rank.
+6. Approach the return pad and press E. Returning restores HP. If defeated, E
+   restarts at wave 1 with full health, PP and recovery charges, without rewarding XP.
+   After extraction, E at the lobby terminal redeploys while preserving session level.
+7. Escape pauses. Choose New session to reset and play again.
 
 WASD moves relative to the camera; Shift sprints. Right-mouse dragging or arrows
 orbit, and the wheel zooms. Movement collides with walls, props, the terminal and
@@ -47,13 +51,12 @@ PSP_GAME_SMOKE=1 PSP_GAME_CAPTURE=local/solo.png cargo run --features viewer --b
 ```
 
 This drives ordinary movement and interactions through the full quest, exits
-successfully only after returning at level 2, and captures lobby, field and final
-framebuffers. It fails after 30 seconds of simulated time. Omit `PSP_GAME_SMOKE`
+successfully only after returning at level 2, and captures lobby, field, wave transitions, results and final framebuffers. It fails after 90 seconds of simulated time. Omit `PSP_GAME_SMOKE`
 to capture just the initial scene after three frames. The output folder must exist.
 
 ## Next steps
 
-The current quest is one combat encounter with simple local enemy steering. Next
+The current quest is a three-wave sequence of single enemies with simple local steering. Next
 work is richer player/field art, equipment, multiple enemies and quest reuse,
 then persistence before networking. There is no navigation mesh or imported PSO2
 player character yet.

@@ -72,3 +72,8 @@ in [animation](animation.md).
 The [combat pass](combat-feel.md) keeps enemy transforms and contact phases in
 core; camera lock-on, world-to-screen feedback, clips and field scenery remain
 in presentation. Session damage helpers preserve one-time quest rewards.
+
+Session now validates sequential wave advances and recovery charges. World owns
+wave breaks, safe spawn choice and per-trial statistics; presentation displays
+results. Final XP remains a single transition, and redeployment preserves the
+current session level without implying persistence to disk.

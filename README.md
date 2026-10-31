@@ -8,8 +8,8 @@ is in a good state.
 
 Download `phantasy-star.exe` from [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases)
 and open it to enter the original orbital lobby. No game installation is required.
-Walk to the blue mission terminal and press E to enter Hunter training. Defeat the
-moving enemy, gain a level, then use the return pad. The ZIP also includes
+Walk to the blue mission terminal and press E to enter Hunter training. Clear
+three waves, gain a level, then use the return pad. The ZIP also includes
 `Play-Dagan.cmd` to fetch the verified Classic Dagan model and motions for the enemy.
 
 ```sh
@@ -18,20 +18,22 @@ cargo run --features viewer --bin phantasy-star -- /path/to/dagan.ice
 ```
 
 WASD moves, Shift sprints, Space jumps, Q locks on, and X steps. Left mouse or
-J attacks; F uses the original Photon Sweep for 35 PP. Time a fresh attack press
-when the timing ring turns orange for a stronger follow-up. E interacts or retries
+J attacks; F uses the original Photon Sweep for 35 PP. H uses a recovery charge.
+Time a fresh attack press when the timing ring turns orange for a stronger follow-up. E interacts or retries
 after defeat. Hold RMB and drag, or use arrows, to orbit; scroll to zoom. Escape
 opens the pause menu.
 
 The combat pass adds three sword swings, PP recovery through normal hits, timed
 follow-ups, dodge windows, and an enemy that chases, telegraphs, lunges and
 recovers. The camera holds a locked target; damage numbers, sword trails and the
-HP/PP action palette support impact feedback. The field is an original forest
+HP/PP action palette support impact feedback. Three waves culminate in a faster
+final enemy and a scored results panel; redeploy from the lobby to keep practicing
+with your current session level. The field is an original forest
 clearing, and the original Hunter uses beveled armor on its 17-bone rig. The
 optional Dagan uses native movement, attack, damage and death motions.
 
 This is a Classic-inspired prototype with original balance. Player/field art
-remains provisional; equipment, saving, multi-enemy quests and multiplayer are
+remains provisional; equipment, saving, simultaneous multi-enemy combat and multiplayer are
 future work. See [combat feel](docs/combat-feel.md), [solo gameplay](docs/solo-game.md)
 and [rigging and animation](docs/animation.md).
 

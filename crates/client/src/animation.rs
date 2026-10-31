@@ -55,7 +55,7 @@ impl ProjectionMotion {
                 EnemyAction::Approach => ("10010_mov_f.aqm", world.enemy_elapsed(), true),
                 EnemyAction::Windup => (
                     "20010_atk_near.aqm",
-                    world.enemy_elapsed() / 0.65 * 0.4,
+                    world.enemy_elapsed() / world.enemy_windup_duration() * 0.4,
                     false,
                 ),
                 EnemyAction::Strike => (

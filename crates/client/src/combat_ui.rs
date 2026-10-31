@@ -2,7 +2,7 @@ use crate::hunter::Hunter;
 use macroquad::prelude::*;
 use psp_core::{
     world::{EnemyAction, World},
-    Location, QuestState, ENEMY_MAX_HEALTH,
+    Location, QuestState, TRIAL_WAVES,
 };
 const PANEL: Color = Color::new(0.025, 0.07, 0.13, 0.9);
 const CYAN: Color = Color::new(0.18, 0.86, 1.0, 1.0);
@@ -48,6 +48,15 @@ impl Feedback {
         if self.popups.len() > 24 {
             self.popups.remove(0);
         }
+    }
+    pub fn heal(&mut self, world: &World, amount: u32) {
+        let p = world.position();
+        self.popups.push(Popup {
+            point: vec3(p.x, world.height() + 1.4, p.z),
+            text: format!("+{}", amount),
+            color: GREEN,
+            age: 0.0,
+        });
     }
     pub fn tick(&mut self, delta: f32, hunter: &Hunter, world: &World) {
         for p in &mut self.popups {
@@ -141,6 +150,13 @@ fn text_right(text: &str, right: f32, y: f32, size: u16, color: Color) {
 pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
     let w = screen_width();
     let h = screen_height();
+    if world.hurt() {
+        let color = Color::new(1.0, 0.08, 0.02, 0.22);
+        draw_rectangle(0.0, 0.0, 12.0, h, color);
+        draw_rectangle(w - 12.0, 0.0, 12.0, h, color);
+        draw_rectangle(0.0, 0.0, w, 12.0, color);
+        draw_rectangle(0.0, h - 12.0, w, 12.0, color);
+    }
     let hunter = world.session().hunter();
     draw_rectangle(18.0, 16.0, 256.0, 43.0, PANEL);
     draw_rectangle(18.0, 16.0, 3.0, 43.0, CYAN);
@@ -163,7 +179,11 @@ pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
         draw_rectangle(18.0, 69.0, 256.0, 55.0, PANEL);
         draw_text(
             if projection {
-                "DAGAN / COMBAT TRIAL"
+                if world.session().wave() == 3 {
+                    "DAGAN / ENHANCED"
+                } else {
+                    "DAGAN / COMBAT TRIAL"
+                }
             } else {
                 "COMBAT DRONE"
             },
@@ -176,7 +196,8 @@ pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
         draw_rectangle(
             30.0,
             101.0,
-            230.0 * world.session().enemy_health() as f32 / ENEMY_MAX_HEALTH as f32,
+            230.0 * world.session().enemy_health() as f32
+                / world.session().enemy_max_health() as f32,
             6.0,
             ORANGE,
         );
@@ -211,8 +232,8 @@ pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
     text_right(
         match (world.session().quest(), lobby) {
             (QuestState::Available, _) => "Mission terminal / E to deploy",
-            (QuestState::Active, _) => "Defeat the enemy",
-            (_, true) => "Trial complete / Esc to replay",
+            (QuestState::Active, _) => "Clear all three waves",
+            (_, true) => "E at terminal / Deploy again",
             _ => "Return pad / E to extract",
         },
         w - 22.0,
@@ -220,6 +241,31 @@ pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
         17,
         CYAN,
     );
+    if !lobby && world.session().quest() == QuestState::Active {
+        text_right(
+            &format!("WAVE {} / {}", world.session().wave(), TRIAL_WAVES),
+            w - 22.0,
+            82.0,
+            20,
+            if world.session().wave() == 3 {
+                ORANGE
+            } else {
+                WHITE
+            },
+        );
+        if world.wave_delay() > 0.0 {
+            text_right(
+                &format!("Next wave in {:.1}s", world.wave_delay()),
+                w - 22.0,
+                105.0,
+                17,
+                CYAN,
+            );
+        }
+    }
+    if !lobby && world.session().quest() == QuestState::Complete {
+        results(world);
+    }
     let x = 18.0;
     let y = h - 134.0;
     draw_rectangle(x, y, 256.0, 111.0, PANEL);
@@ -252,7 +298,7 @@ pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
     draw_rectangle(x + 12.0, y + 74.0, 230.0, 7.0, DARKGRAY);
     draw_rectangle(x + 12.0, y + 74.0, 230.0 * world.pp() / 100.0, 7.0, CYAN);
     draw_text(
-        "Space: jump   Shift: sprint",
+        format!("H: recovery x{}   Space: jump", world.session().mates()),
         x + 12.0,
         y + 99.0,
         15.0,
@@ -357,5 +403,34 @@ pub fn hud(world: &World, message: &str, message_time: f32, projection: bool) {
         let size = 19;
         let width = measure_text(message, None, size, 1.0).width;
         draw_text(message, (w - width) * 0.5, h - 198.0, size as f32, YELLOW);
+    }
+}
+
+fn results(world: &World) {
+    let s = world.stats();
+    let x = screen_width() - 318.0;
+    let y = 84.0;
+    draw_rectangle(x, y, 300.0, 226.0, PANEL);
+    draw_rectangle_lines(x, y, 300.0, 226.0, 1.0, CYAN);
+    draw_text("TRIAL COMPLETE", x + 16.0, y + 29.0, 23.0, WHITE);
+    draw_text(s.rank(), x + 250.0, y + 40.0, 38.0, ORANGE);
+    for (i, line) in [
+        format!("Score {} / {:.1}s", s.score(), s.duration),
+        format!("Enemies cleared   {} / {}", s.defeats, TRIAL_WAVES),
+        format!("Timed hits {} / Evades {}", s.perfect_attacks, s.evades),
+        format!("Damage {} / Recovery {}", s.damage_taken, s.heals_used),
+        "Reward   +100 XP".to_owned(),
+        "Return pad / E to extract".to_owned(),
+    ]
+    .iter()
+    .enumerate()
+    {
+        draw_text(
+            line,
+            x + 16.0,
+            y + 65.0 + i as f32 * 26.0,
+            17.0,
+            if i == 4 { YELLOW } else { LIGHTGRAY },
+        );
     }
 }
