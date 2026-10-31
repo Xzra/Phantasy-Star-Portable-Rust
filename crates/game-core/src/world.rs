@@ -1,5 +1,6 @@
 //! Solo world simulation. Input, collision, interaction ranges and attack cadence
 //! live here so presentation cannot bypass the gameplay rules.
+use crate::inventory::{Inventory, WeaponId};
 use crate::weapon::{PhotonArt, WeaponLoadout};
 use crate::{Command, Event, Location, QuestState, Session};
 
@@ -95,6 +96,8 @@ pub struct Attack {
     pub photon: bool,
     /// Captured when the swing starts, so changing the slot cannot alter an active hit.
     pub art: Option<PhotonArt>,
+    /// Weapon power captured at the start, including the current weapon's bonus.
+    pub power: u32,
     hit: bool,
 }
 impl Attack {
@@ -145,7 +148,7 @@ impl TrialStats {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct World {
-    weapon: WeaponLoadout,
+    inventory: Inventory,
     session: Session,
     position: Position,
     facing: f32,
@@ -182,7 +185,7 @@ pub struct World {
 impl Default for World {
     fn default() -> Self {
         Self {
-            weapon: WeaponLoadout::default(),
+            inventory: Inventory::default(),
             session: Session::default(),
             position: Position { x: 0.0, z: 5.5 },
             facing: std::f32::consts::PI,
@@ -237,11 +240,30 @@ fn normalized(input: Position) -> Position {
 }
 impl World {
     pub fn weapon(&self) -> WeaponLoadout {
-        self.weapon
+        self.inventory.equipped()
     }
-    pub fn equip_photon_art(&mut self, art: Option<PhotonArt>) {
-        self.weapon.photon_art = art;
+    pub fn inventory(&self) -> &Inventory {
+        &self.inventory
+    }
+    pub fn weapon_power(&self) -> u32 {
+        self.session.hunter().attack_power() + self.weapon().kind.attack_bonus()
+    }
+    pub fn equip_weapon(&mut self, id: WeaponId) -> Result<(), &'static str> {
+        self.inventory.equip(id)?;
         self.buffered_photon = false;
+        Ok(())
+    }
+    pub fn assign_photon_art(
+        &mut self,
+        id: WeaponId,
+        art: Option<PhotonArt>,
+    ) -> Result<(), &'static str> {
+        self.inventory.assign(id, art)?;
+        self.buffered_photon = false;
+        Ok(())
+    }
+    pub fn equip_photon_art(&mut self, art: Option<PhotonArt>) -> Result<(), &'static str> {
+        self.assign_photon_art(self.inventory.equipped_id(), art)
     }
     pub fn stats(&self) -> &TrialStats {
         &self.stats
@@ -438,7 +460,11 @@ impl World {
         self.stats = TrialStats::default();
     }
     fn begin_attack(&mut self, photon: bool, perfect: bool, events: &mut Vec<WorldEvent>) {
-        let art = if photon { self.weapon.photon_art } else { None };
+        let art = if photon {
+            self.weapon().photon_art
+        } else {
+            None
+        };
         if photon && art.is_none() {
             return;
         }
@@ -461,6 +487,7 @@ impl World {
             perfect,
             photon,
             art,
+            power: self.weapon_power(),
             hit: false,
         });
         if photon {
@@ -662,7 +689,7 @@ impl World {
         self.queued_dodge |= input.dodge;
         self.queued_jump |= input.jump;
         if input.photon_art {
-            match self.weapon.photon_art {
+            match self.weapon().photon_art {
                 Some(art) if self.pp >= art.spec().pp => self.buffered_photon = true,
                 Some(_) => events.push(WorldEvent::Message(
                     "Not enough PP for the equipped Photon Art.",
@@ -746,7 +773,7 @@ impl World {
                 }
             } else if self.buffered_photon
                 && self
-                    .weapon
+                    .weapon()
                     .photon_art
                     .is_some_and(|a| self.pp >= a.spec().pp)
             {
@@ -773,7 +800,7 @@ impl World {
                     && alignment >= attack.art.map_or(0.35, |a| a.spec().alignment)
                     && self.height < 1.6
                 {
-                    let base = self.session.hunter().attack_power();
+                    let base = attack.power;
                     let power = if attack.photon {
                         base * attack.art.unwrap().spec().power_percent / 100
                     } else {
@@ -1056,10 +1083,49 @@ mod tests {
         assert!(w.attack.is_none());
     }
     #[test]
+    fn weapon_inventory_changes_power_without_changing_an_active_swing() {
+        let mut w = close_trial();
+        w.step(
+            Input {
+                attack: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        assert_eq!(w.attack.unwrap().power, 12);
+        w.equip_weapon(WeaponId(3)).unwrap();
+        assert_eq!(w.weapon_power(), 18);
+        assert_eq!(w.attack.unwrap().power, 12);
+        ticks(&mut w, 16, Input::default());
+        assert_eq!(w.session.enemy_health(), ENEMY_MAX_HEALTH - 12);
+        w.reset_encounter();
+        assert_eq!(w.inventory().equipped_id(), WeaponId(3));
+        assert_eq!(w.weapon().photon_art, Some(PhotonArt::PiercingThrust));
+        let before = w.clone();
+        assert!(w.equip_weapon(WeaponId(999)).is_err());
+        assert!(w
+            .assign_photon_art(WeaponId(999), Some(PhotonArt::Sweep))
+            .is_err());
+        assert_eq!(w, before);
+
+        let mut w = close_trial();
+        w.equip_weapon(WeaponId(3)).unwrap();
+        w.step(
+            Input {
+                attack: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        ticks(&mut w, 16, Input::default());
+        assert_eq!(w.session.enemy_health(), ENEMY_MAX_HEALTH - 18);
+    }
+
+    #[test]
     fn equipped_arts_have_distinct_costs_damage_and_contact_times() {
         for art in PhotonArt::ALL {
             let mut w = close_trial();
-            w.equip_photon_art(Some(art));
+            w.equip_photon_art(Some(art)).unwrap();
             let spec = art.spec();
             w.step(
                 Input {
@@ -1088,7 +1154,7 @@ mod tests {
     #[test]
     fn art_slot_changes_preserve_active_attack_and_do_not_spend_pp() {
         let mut w = close_trial();
-        w.equip_photon_art(Some(PhotonArt::RisingCleave));
+        w.equip_photon_art(Some(PhotonArt::RisingCleave)).unwrap();
         w.step(
             Input {
                 photon_art: true,
@@ -1097,14 +1163,14 @@ mod tests {
             FIXED_STEP,
         );
         let pp = w.pp;
-        w.equip_photon_art(Some(PhotonArt::PiercingThrust));
+        w.equip_photon_art(Some(PhotonArt::PiercingThrust)).unwrap();
         assert_eq!(w.attack.unwrap().art, Some(PhotonArt::RisingCleave));
         assert_eq!(w.pp, pp);
         ticks(&mut w, 35, Input::default());
         assert_eq!(w.session.enemy_health(), ENEMY_MAX_HEALTH - 48);
         w.reset_encounter();
         assert_eq!(w.weapon().photon_art, Some(PhotonArt::PiercingThrust));
-        w.equip_photon_art(None);
+        w.equip_photon_art(None).unwrap();
         let pp = w.pp;
         let events = w.step(
             Input {
@@ -1137,7 +1203,7 @@ mod tests {
             let mut w = close_trial();
             w.position.z = ENEMY.z + distance;
             w.facing = facing;
-            w.equip_photon_art(Some(art));
+            w.equip_photon_art(Some(art)).unwrap();
             w.step(
                 Input {
                     photon_art: true,
@@ -1154,7 +1220,7 @@ mod tests {
     fn each_equipped_art_rejects_insufficient_pp_without_starting_an_attack() {
         for art in PhotonArt::ALL {
             let mut w = close_trial();
-            w.equip_photon_art(Some(art));
+            w.equip_photon_art(Some(art)).unwrap();
             w.pp = art.spec().pp - 1.0;
             w.step(
                 Input {

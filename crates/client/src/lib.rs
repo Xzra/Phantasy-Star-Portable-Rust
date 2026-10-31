@@ -10,6 +10,8 @@ pub mod animation;
 
 #[cfg(feature = "viewer")]
 pub mod combat_ui;
+#[cfg(feature = "viewer")]
+pub mod inventory_ui;
 
 pub mod asset_paths;
 #[cfg(feature = "viewer")]

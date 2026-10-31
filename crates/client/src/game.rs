@@ -4,6 +4,7 @@ use psp_client::{
     asset_paths,
     combat_ui::{hud, Feedback},
     hunter::Hunter,
+    inventory_ui::InventoryMenu,
     monster,
     scene::{capture_frame, Scene},
 };
@@ -459,94 +460,17 @@ fn button(label: &str, y: f32) -> bool {
     hover && is_mouse_button_pressed(MouseButton::Left)
 }
 
-fn weapon_menu(world: &mut World) -> bool {
-    let width = (screen_width() - 40.0).min(760.0);
-    let x = (screen_width() - width) * 0.5;
-    let y = ((screen_height() - 460.0) * 0.5).max(16.0);
-    draw_text(
-        "TRAINING SWORD / PHOTON ART SLOT",
-        x,
-        y + 26.0,
-        28.0,
-        ACCENT,
-    );
-    draw_text(
-        "Equip one art. RMB or F activates it; normal hits restore PP.",
-        x,
-        y + 55.0,
-        18.0,
-        WHITE,
-    );
-    let keys = [KeyCode::Key1, KeyCode::Key2, KeyCode::Key3];
-    for (i, art) in PhotonArt::ALL.into_iter().enumerate() {
-        let spec = art.spec();
-        let rect = Rect::new(x, y + 78.0 + i as f32 * 82.0, width, 72.0);
-        let selected = world.weapon().photon_art == Some(art);
-        let hover = rect.contains(vec2(mouse_position().0, mouse_position().1));
-        draw_rectangle(
-            rect.x,
-            rect.y,
-            rect.w,
-            rect.h,
-            if selected {
-                Color::new(0.1, 0.3, 0.38, 1.0)
-            } else {
-                INK
-            },
-        );
-        draw_rectangle_lines(
-            rect.x,
-            rect.y,
-            rect.w,
-            rect.h,
-            if selected { 2.0 } else { 1.0 },
-            if selected || hover { ACCENT } else { GRAY },
-        );
-        draw_text(
-            format!(
-                "{}  {}  /  {:.0} PP  /  {}% power{}",
-                i + 1,
-                spec.name,
-                spec.pp,
-                spec.power_percent,
-                if selected { "  [EQUIPPED]" } else { "" }
-            ),
-            rect.x + 14.0,
-            rect.y + 28.0,
-            22.0,
-            WHITE,
-        );
-        draw_text(
-            spec.description,
-            rect.x + 14.0,
-            rect.y + 53.0,
-            17.0,
-            LIGHTGRAY,
-        );
-        if (hover && is_mouse_button_pressed(MouseButton::Left)) || is_key_pressed(keys[i]) {
-            world.equip_photon_art(Some(art));
-        }
-    }
-    if button("Unequip art  /  0", y + 336.0) || is_key_pressed(KeyCode::Key0) {
-        world.equip_photon_art(None);
-    }
-    draw_text(
-        if world.weapon().photon_art.is_some() {
-            "RMB slot: equipped"
-        } else {
-            "RMB slot: empty"
-        },
-        x,
-        y + 408.0,
-        18.0,
-        ACCENT,
-    );
-    button("Return  /  Tab", y + 422.0)
-}
-
 #[macroquad::main(window_config)]
 async fn main() {
     let mut world = World::default();
+    if let Ok(id) = std::env::var("PSP_SMOKE_WEAPON") {
+        world
+            .equip_weapon(psp_core::inventory::WeaponId(
+                id.parse()
+                    .expect("PSP_SMOKE_WEAPON must be an owned weapon ID"),
+            ))
+            .expect("PSP_SMOKE_WEAPON is not owned");
+    }
     if let Ok(art) = std::env::var("PSP_SMOKE_ART") {
         let art = match art.as_str() {
             "sweep" => PhotonArt::Sweep,
@@ -554,7 +478,7 @@ async fn main() {
             "thrust" => PhotonArt::PiercingThrust,
             _ => panic!("PSP_SMOKE_ART must be sweep, cleave or thrust"),
         };
-        world.equip_photon_art(Some(art));
+        world.equip_photon_art(Some(art)).unwrap();
     }
     let mut hunter = Hunter::default();
     let mut bones = false;
@@ -611,6 +535,7 @@ async fn main() {
     );
     let mut paused = false;
     let mut weapon_open = false;
+    let mut inventory_menu = InventoryMenu::default();
     let mut accumulator = 0.0;
     let mut pending_interaction = false;
     let mut pending_attack = false;
@@ -667,7 +592,7 @@ async fn main() {
             pending_art = false;
             pending_heal = false;
         }
-        if is_key_pressed(KeyCode::Tab) {
+        if is_key_pressed(KeyCode::Tab) || is_key_pressed(KeyCode::I) {
             weapon_open = !weapon_open;
             paused = weapon_open;
             accumulator = 0.0;
@@ -920,7 +845,7 @@ async fn main() {
                 Color::new(0.0, 0.02, 0.04, 0.85),
             );
             if weapon_open {
-                if weapon_menu(&mut world) {
+                if inventory_menu.draw(&mut world) {
                     weapon_open = false;
                     paused = false;
                 }
@@ -932,11 +857,12 @@ async fn main() {
                 if button("Resume  /  Enter", y + 30.0) {
                     paused = false;
                 }
-                if button("Weapon / Photon Arts  /  Tab", y + 90.0) {
+                if button("Inventory  /  Tab", y + 90.0) {
                     weapon_open = true;
                 }
                 if button("New session", y + 150.0) {
                     world = World::default();
+                    inventory_menu = InventoryMenu::default();
                     hunter = Hunter::default();
                     feedback = Feedback::default();
                     motion.reset();

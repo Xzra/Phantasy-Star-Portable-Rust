@@ -10,13 +10,23 @@ WASD: move     Shift: sprint     Space: jump     Q: lock on
 Left mouse / J: sword combo     X: step          RMB / F: equipped Photon Art
 H: recovery (3 charges, up to 40 HP)     E: interact / retry after defeat
 Middle mouse drag / arrows: orbit camera     Wheel: zoom     Escape: pause
-Tab: sword Photon Art slot; click an art or use 1/2/3 to equip, 0 to unequip.
+Tab / I: inventory. Click a weapon or Up/Down selects it; E equips it.
+Click a PA or use 1/2/3 to slot its disc on the selected weapon; 0 removes it.
+Tab / I / Escape / Enter closes the inventory. Combat pauses while it is open.
+
+INVENTORY
+Three owned swords start in your 32-item bag: Training Sword (ATK +0, cyan),
+Hunter Saber (ATK +3, gold), and Photon Edge (ATK +6, violet). Each remembers its
+own PA slot, initially Sweep, Cleave, and Thrust respectively. All three PA discs
+are owned. Assigning a disc moves it from the previous weapon; displaced or
+removed discs return to the bag. The HUD shows the equipped weapon and attack
+power. Gear bonuses affect normal attacks and Photon Arts.
 
 PHOTON ARTS
 Photon Sweep: 35 PP, spinning cut, hits around you.
 Rising Cleave: 30 PP, heavy upward cut, strongest close-range hit.
 Piercing Thrust: 20 PP, quick narrow attack, longest reach.
-Equip one art to the training sword's RMB slot. The HUD shows the selected art
+Equip one art to each sword's RMB slot. The HUD shows the active weapon's art
 and PP cost. An empty slot or insufficient PP cannot activate an art. These are
 original prototype skills. Equipment choices last for this session.
 
@@ -36,7 +46,8 @@ The field is an original forest clearing. The Hunter has beveled armor and a
 17-bone rig with distinct combo and photon clips. F2 toggles bones. Player and
 field art remain placeholders; this is a Classic-inspired prototype with
 original balance, not an exact PSO2 recreation. Progress is session-only.
-Weapon inventory, multiple enemies, saving and multiplayer are not implemented yet.
+Inventory lasts for the session; New session restores the starter bag. Item drops,
+multiple enemies, saving across launches and multiplayer are not implemented yet.
 
 MODEL VIEWER
 Double-click model-viewer.exe. The original sample crystal is embedded; no game

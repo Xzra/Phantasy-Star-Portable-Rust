@@ -24,8 +24,10 @@ cargo run --features viewer --bin phantasy-star -- /path/to/dagan.ice
 ```
 
 WASD moves, Shift sprints, Space jumps, Q locks on, and X steps. Left mouse or
-J attacks; RMB or F uses the sword's equipped Photon Art. Tab opens the weapon
-slot to equip Sweep, Rising Cleave, or Piercing Thrust. H uses a recovery charge.
+J attacks; RMB or F uses the sword's equipped Photon Art. Tab or I opens the
+inventory: select a weapon, E equips it, and 1/2/3 assigns an owned PA disc.
+Three starter swords remember their own PA slots; discs move between weapons.
+H uses a recovery charge. See [inventory controls](docs/inventory.md).
 Time a fresh attack press when the timing ring turns orange for a stronger follow-up. E interacts or retries
 after defeat. Hold MMB and drag, or use arrows, to orbit; scroll to zoom. Escape
 opens the pause menu.
@@ -42,8 +44,8 @@ motion packs use basic joint animation; the standalone Forest Crawler is also
 rigged and animated. The enemy HUD shows which motion set is active.
 
 This is a Classic-inspired prototype with original balance. Player/field art
-remains provisional; the sword has one equippable PA slot, while weapon inventory,
-saving, simultaneous multi-enemy combat and multiplayer are
+remains provisional; the inventory contains three starter swords and PA discs.
+Item drops, saving, simultaneous multi-enemy combat and multiplayer are
 future work. See [combat feel](docs/combat-feel.md), [solo gameplay](docs/solo-game.md)
 and [rigging and animation](docs/animation.md).
 
@@ -125,8 +127,8 @@ server can own the session without depending on a graphics library.
 1. **Model viewer — in progress:** OBJ solid/wireframe modes, one-texture rendering,
    and camera controls exist. Classic rig/animation support is available; next: broader format/material support.
 2. **Working lobby — initial playable version:** movement, chase camera, collision, mission terminal.
-3. **Hunter class — initial rig:** original jointed model with idle/walk/run/slash; next: equipment and deeper combat.
-4. **Basic combat and leveling — foundation:** sword combos, timed hits, PP, step/jump and moving enemy AI; next: broader encounters and equipment.
+3. **Hunter class — initial rig:** original jointed model, weapon inventory and PA slots; next: deeper combat and gear progression.
+4. **Basic combat and leveling — foundation:** sword combos, timed hits, PP, step/jump and moving enemy AI; next: broader encounters and item drops.
 5. **Basic quest — initial training loop:** enter a field, defeat a projection, receive rewards, return.
 6. **Hostable server:** move established rules behind authoritative commands.
 

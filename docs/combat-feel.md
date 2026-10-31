@@ -20,7 +20,7 @@ and evasion. It is not an exact reconstruction of Classic or NGS mechanics.
 | X + movement | Dodge step; X without direction steps backward |
 | Space | Jump; attacks can be used in the air |
 | RMB / F | Activate the sword's equipped Photon Art |
-| Tab | Open weapon slot; click or 1/2/3 equips, 0 clears the slot |
+| Tab / I | Inventory: select weapon, E equips, 1/2/3 assigns a PA, 0 removes it |
 | E | Terminal, return pad, or retry after defeat |
 | MMB drag / arrows / wheel | Orbit / zoom camera |
 | Escape | Pause, new session, quit |
@@ -43,13 +43,14 @@ refund. Input during hit-stop is retained for the next simulation tick.
 
 ## Weapon Photon Art slot
 
-The training sword has one equippable art. Open Tab (or Weapon / Photon Arts
-in the pause menu) and select one of three original skills. The action palette
+Each owned sword has one equippable art. Open Tab / I (or Inventory in the pause
+menu), select a weapon, and assign an owned PA disc. E equips the selected sword.
+The action palette
 shows its name, PP cost and readiness. RMB uses a fresh press; holding it does
 not repeatedly spend PP. F is an equivalent keyboard binding. Camera drag uses
 MMB so activating an art does not move the camera. Equipment menus pause combat.
 
-| Art | PP | Level 1 damage | Range | Contact / duration | Aim |
+| Art | PP | Training Sword level 1 damage | Range | Contact / duration | Aim |
 | --- | --- | --- | --- | --- | --- |
 | Photon Sweep | 35 | 36 | 3.5 | 0.34 / 0.85 s | All around the player |
 | Rising Cleave | 30 | 48 | 2.8 | 0.45 / 1.00 s | Forward cone |
@@ -60,7 +61,8 @@ PP is charged once when the attack begins. A swing captures its art at that
 moment; swapping slots during a paused swing changes subsequent attacks,
 without changing the current swing or charging PP again. Equipment changes
 clear buffered art input. The slot survives retries and extraction/redeployment;
-New session resets it to Sweep. Choices are session-only until saving is added.
+New session restores the starter weapons and discs. Choices are session-only
+until saving is added. See [inventory](inventory.md) for ownership and transfer rules.
 
 The step travels for 0.23 seconds with a 0.65-second cooldown. Its early portion
 avoids attacks; movement still collides with props, map boundaries and the enemy.

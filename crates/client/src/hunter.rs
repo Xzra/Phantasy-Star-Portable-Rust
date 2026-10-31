@@ -6,7 +6,7 @@ use psp_assets::{
     rig::{Bone, BoneTrack, Channel, Clip, Rig, Skeleton, Transform},
     Model,
 };
-use psp_core::weapon::PhotonArt;
+use psp_core::weapon::{PhotonArt, WeaponKind};
 use psp_core::world::World;
 
 pub struct Hunter {
@@ -340,6 +340,26 @@ impl Hunter {
             .map(|v| transform.transform_point3(globals[16].transform_point3(v)));
         self.scene.set_model_transform(transform);
         self.scene.animate(&self.pose);
+        let tint = match world.weapon().kind {
+            WeaponKind::TrainingSword => [0.3, 0.95, 1.0],
+            WeaponKind::HunterSaber => [1.0, 0.7, 0.2],
+            WeaponKind::PhotonEdge => [0.7, 0.4, 1.0],
+        };
+        // Animate restores the source colors each frame; tint only sword vertices,
+        // preserving the skinning light and leaving the armor unchanged.
+        let rig = self.scene.rig.as_ref().unwrap();
+        for (batch, mesh) in self.scene.solid.iter_mut().enumerate() {
+            for (local, vertex) in mesh.vertices.iter_mut().enumerate() {
+                let triangle = batch * 1500 + local / 3;
+                let index = self.scene.model.triangles[triangle][local % 3];
+                if rig.skin[index].joints[0] == 16 {
+                    let light = vertex.color[2] as f32;
+                    for (channel, tint) in vertex.color.iter_mut().zip(tint) {
+                        *channel = (light * tint) as u8;
+                    }
+                }
+            }
+        }
     }
     pub fn draw(&self, bones: bool) {
         self.scene.draw(false);
@@ -353,6 +373,46 @@ impl Hunter {
 mod tests {
     use super::*;
     use psp_core::world::{Input, Position, FIXED_STEP};
+    #[test]
+    fn weapon_switch_tints_only_the_sword_and_restores_it_without_accumulation() {
+        let mut world = World::default();
+        let mut hunter = Hunter::default();
+        hunter.update(&world);
+        let before: Vec<_> = hunter
+            .scene
+            .solid
+            .iter()
+            .flat_map(|m| m.vertices.iter().map(|v| v.color))
+            .collect();
+        world
+            .equip_weapon(psp_core::inventory::WeaponId(3))
+            .unwrap();
+        hunter.update(&world);
+        let after: Vec<_> = hunter
+            .scene
+            .solid
+            .iter()
+            .flat_map(|m| m.vertices.iter().map(|v| v.color))
+            .collect();
+        assert_ne!(before, after);
+        let rig = hunter.scene.rig.as_ref().unwrap();
+        for (corner, index) in hunter.scene.model.triangles.iter().flatten().enumerate() {
+            if rig.skin[*index].joints[0] != 16 {
+                assert_eq!(before[corner], after[corner]);
+            }
+        }
+        world
+            .equip_weapon(psp_core::inventory::WeaponId(1))
+            .unwrap();
+        hunter.update(&world);
+        let restored: Vec<_> = hunter
+            .scene
+            .solid
+            .iter()
+            .flat_map(|m| m.vertices.iter().map(|v| v.color))
+            .collect();
+        assert_eq!(before, restored);
+    }
     #[test]
     fn sword_grip_stays_inside_the_palm_across_every_authored_clip() {
         let hunter = Hunter::default();

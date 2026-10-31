@@ -1,4 +1,4 @@
-//! The training sword's equipable Photon Art slot. Balance is original.
+//! Sword definitions and equipable Photon Arts. Balance is original.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum PhotonArt {
     #[default]
@@ -61,12 +61,44 @@ impl PhotonArt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeaponKind {
+    TrainingSword,
+    HunterSaber,
+    PhotonEdge,
+}
+impl WeaponKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::TrainingSword => "Training Sword",
+            Self::HunterSaber => "Hunter Saber",
+            Self::PhotonEdge => "Photon Edge",
+        }
+    }
+    pub fn attack_bonus(self) -> u32 {
+        match self {
+            Self::TrainingSword => 0,
+            Self::HunterSaber => 3,
+            Self::PhotonEdge => 6,
+        }
+    }
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::TrainingSword => "A balanced practice sword.",
+            Self::HunterSaber => "A reinforced Hunter blade.",
+            Self::PhotonEdge => "A high-output photon blade.",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WeaponLoadout {
+    pub kind: WeaponKind,
     pub photon_art: Option<PhotonArt>,
 }
 impl Default for WeaponLoadout {
     fn default() -> Self {
         Self {
+            kind: WeaponKind::TrainingSword,
             photon_art: Some(PhotonArt::Sweep),
         }
     }

@@ -166,13 +166,20 @@ pub fn hud(
     let hunter = world.session().hunter();
     draw_rectangle(18.0, 16.0, 256.0, 43.0, PANEL);
     draw_rectangle(18.0, 16.0, 3.0, 43.0, CYAN);
-    draw_text("HUNTER / SWORD", 30.0, 36.0, 19.0, WHITE);
+    draw_text(
+        format!("HUNTER / {}", world.weapon().kind.name().to_uppercase()),
+        30.0,
+        36.0,
+        17.0,
+        WHITE,
+    );
     draw_text(
         format!(
-            "LV {}   XP {} / {}",
+            "LV {}   XP {} / {}   ATK {}",
             hunter.level,
             hunter.experience,
-            hunter.level * 100
+            hunter.level * 100,
+            world.weapon_power()
         ),
         30.0,
         52.0,
@@ -394,7 +401,13 @@ pub fn hud(
         15,
         LIGHTGRAY,
     );
-    text_right("Tab: weapon   F2: bones", w - 18.0, h - 24.0, 15, LIGHTGRAY);
+    text_right(
+        "Tab / I: inventory   F2: bones",
+        w - 18.0,
+        h - 24.0,
+        15,
+        LIGHTGRAY,
+    );
     if world.defeated() {
         draw_rectangle(0.0, h * 0.37, w, 100.0, Color::new(0.1, 0.01, 0.03, 0.9));
         let label = "INCAPACITATED / E TO RETRY";
