@@ -1,6 +1,7 @@
 use psp_core::{Command, QuestState, Session};
 use std::{env, error::Error, fs};
 
+mod inventory;
 mod references;
 
 fn main() {
@@ -13,6 +14,28 @@ fn main() {
 fn run() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
     match args.as_slice() {
+        [command, path] if command == "stage-layout" => {
+            let bytes = read_model(path)?;
+            let decoded = psp_assets::ice_decode::decode_v4(&bytes)?;
+            let archive = psp_assets::ice::IceArchive::parse(&decoded)?;
+            let mut templates = 0;
+            for entry in archive.entries.iter().filter(|e| e.extension == "lat") {
+                let land = psp_assets::land::LandTemplate::parse(entry.data)?;
+                let cells: Vec<_> = land.cells.iter().enumerate().filter(|(_, c)| c.piece_id != 0).map(|(i, c)| {
+                    let id = c.piece_id.to_le_bytes();
+                    serde_json::json!({"row": i / land.width, "column": i % land.width,
+                        "piece_id": c.piece_id, "tile": String::from_utf8_lossy(&id),
+                        "rotation_count": c.rotation_count, "variant": c.variant,
+                        "object_variant": c.object_variant, "category": c.category})
+                }).collect();
+                println!("{}", serde_json::json!({"template": entry.name, "width": land.width,
+                    "height": land.height, "occupied_cells": cells}));
+                templates += 1;
+            }
+            if templates == 0 { return Err("archive has no LAT stage templates".into()); }
+        }
+        [command, directory] if command == "ice-inventory" => inventory::run(directory, 1000)?,
+        [command, directory, limit] if command == "ice-inventory" => inventory::run(directory, limit.parse()?)?,
         [command, index, query, options @ ..] if command == "asset-search" => references::search(index, query, options)?,
         [command] if command == "demo" => {
             let mut session = Session::default();
@@ -73,7 +96,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
         [command, path] if command == "catalog" => print_catalog(path, 10000)?,
         [command, path, limit] if command == "catalog" => print_catalog(path, limit.parse()?)?,
-        [] => println!("Usage: psp-client demo | inspect <model.obj> | motion-list <model.ice> <motions.ice> | ice-list <archive.ice> | catalog <directory> [file-limit]\n  asset-search <itemData.json> <query> [--root data-directory] [--limit N] [--classic | --ngs]\nGraphical viewer: cargo run --features viewer --bin model-viewer -- [model.obj]"),
+        [] => println!("Usage: psp-client demo | inspect <model.obj> | motion-list <model.ice> <motions.ice> | ice-list <archive.ice> | catalog <directory> [file-limit]\n  ice-inventory <directory> [file-limit] (decoded ICE metadata as JSON lines)\n  stage-layout <archive.ice> (Classic LAT tile grids as JSON lines)\n  asset-search <itemData.json> <query> [--root data-directory] [--limit N] [--classic | --ngs]\nGraphical viewer: cargo run --features viewer --bin model-viewer -- [model.obj]"),
         _ => return Err("unknown command or missing arguments; run psp-client without arguments for usage".into()),
     }
     Ok(())

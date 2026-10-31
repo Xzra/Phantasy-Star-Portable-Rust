@@ -6,6 +6,7 @@ pub mod catalog;
 pub mod ice;
 pub mod ice_decode;
 pub mod import;
+pub mod land;
 pub mod materials;
 pub mod rig;
 

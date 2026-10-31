@@ -4,6 +4,11 @@ A ground-up Rust game inspired by Phantasy Star Online, using PSO2 and Nova as
 references. Start with solo play, then introduce a hostable server once the game
 is in a good state.
 
+Classic PC investigation now includes a resumable official Classic-only download,
+decoded archive inventories, and a bounded stage layout reader. See
+[Classic download and engine findings](docs/classic-research.md) for verified
+models, motions, Forest/lobby grids, commands, and current limitations.
+
 ## Start here: playable solo prototype
 
 Download `phantasy-star.exe` from [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases)
