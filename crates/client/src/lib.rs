@@ -22,3 +22,4 @@ pub mod asset_paths;
 pub mod monster;
 #[cfg(feature = "viewer")]
 mod rig_geometry;
+pub mod saves;

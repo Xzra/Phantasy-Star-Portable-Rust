@@ -67,8 +67,8 @@ PP is charged once when the attack begins. A swing captures its art at that
 moment; swapping slots during a paused swing changes subsequent attacks,
 without changing the current swing or charging PP again. Equipment changes
 clear buffered art input. The slot survives retries and extraction/redeployment;
-New session restores the starter weapons and discs. Choices are session-only
-until saving is added. See [inventory](inventory.md) for ownership and transfer rules.
+Equipment autosaves between launches; reopening returns to the lobby. See
+[inventory](inventory.md) and [saving](saving.md) for ownership and save rules.
 
 The step travels for 0.23 seconds with a 0.65-second cooldown. Its early portion
 avoids attacks; movement still collides with props, map boundaries and the enemy.
@@ -86,7 +86,7 @@ mesh or multiple targets. It can get held up by complex prop arrangements.
 
 Defeat stops player actions. E restarts the encounter with full health, PP and
 enemy HP, without awarding XP. Victory awards 100 XP once per trial, raises the Hunter to
-level 2, and unlocks the return pad. Progress remains session-only.
+level 2, and unlocks the return pad. Levels, inventory and Meseta autosave.
 
 ## Presentation and validation
 

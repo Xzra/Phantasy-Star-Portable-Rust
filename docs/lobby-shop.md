@@ -17,7 +17,7 @@ equipped sword cannot be sold: equip another one first.
 
 ## Currency and stock
 
-New sessions begin with **300 Meseta** as well as the existing starter bag.
+New characters begin with **300 Meseta** as well as the existing starter bag.
 Clearing all three trial waves awards **300 Meseta**, once per completed trial.
 Retry, individual wave kills, extraction and attacks after victory do not award
 extra money. Repeat trials to earn more. Wallet capacity is 999,999 Meseta.
@@ -36,9 +36,9 @@ Ownership, money, bag capacity, equipped-weapon protection and wallet limits are
 validated before mutation. Failed trades preserve both inventory and wallet.
 Shop prices are fixed prototype values; there is no real-money purchasing.
 
-**Currency, purchases and inventory are session-only.** New session restores
-the starter bag and 300 Meseta. Saving, restocking rules and item rarities are
-future work. Mira, her counter display and stock are original prototype art.
+Currency, purchases and inventory [autosave between launches](saving.md).
+Returning to the lobby keeps your gear and money. Restocking rules and item
+rarities are future work. Mira, her counter display and stock are original art.
 
 ## Validation
 

@@ -34,6 +34,8 @@ each completed trial earns another 300. See [the lobby shop](docs/lobby-shop.md)
 Time a fresh attack press when the timing ring turns orange for a stronger follow-up. E interacts or retries
 after defeat. Hold MMB and drag, or use arrows, to orbit; scroll to zoom. Escape
 opens the pause menu.
+Levels, Meseta, inventory and equipment now autosave between launches. F5 saves
+immediately; reopening returns to the lobby. See [character saves](docs/saving.md).
 
 The [presentation pass](docs/presentation.md) adds readable interface typography,
 framed panels, a darker orbital deck, structural scenery and a greener forest
@@ -52,7 +54,7 @@ rigged and animated. The enemy HUD shows which motion set is active.
 
 This is a Classic-inspired prototype with original balance. Player/field art
 remains provisional; the inventory contains three starter swords and PA discs.
-Item drops, saving, simultaneous multi-enemy combat and multiplayer are
+Item drops, simultaneous multi-enemy combat and multiplayer are
 future work. See [combat feel](docs/combat-feel.md), [solo gameplay](docs/solo-game.md)
 and [rigging and animation](docs/animation.md).
 

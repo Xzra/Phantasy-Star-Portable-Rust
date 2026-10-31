@@ -7,6 +7,7 @@ use psp_client::{
     inventory_ui::{draw_menu_cursor, InventoryMenu},
     monster,
     presentation::{self, Environment},
+    saves::{self, SaveStore},
     scene::{capture_frame, Scene},
     shop_ui::{self, ShopMenu},
 };
@@ -377,7 +378,30 @@ fn button(label: &str, y: f32) -> bool {
 async fn main() {
     presentation::initialize_font();
     let environment = Environment::default();
-    let mut world = World::default();
+    prevent_quit();
+    let diagnostic = [
+        "PSP_GAME_SMOKE",
+        "PSP_SHOP_SMOKE",
+        "PSP_GAME_CAPTURE",
+        "PSP_GAME_PREVIEW",
+        "PSP_SMOKE_WEAPON",
+        "PSP_SMOKE_ART",
+    ]
+    .iter()
+    .any(|name| std::env::var_os(name).is_some());
+    let persistent_run = !diagnostic || std::env::var_os("PSP_SAVE_PATH").is_some();
+    let (mut save_store, mut world) = if persistent_run {
+        saves::default_path()
+            .map(SaveStore::open)
+            .unwrap_or_else(|| {
+                (
+                    SaveStore::unavailable("No profile location is available."),
+                    World::default(),
+                )
+            })
+    } else {
+        (SaveStore::disabled(), World::default())
+    };
     if let Ok(id) = std::env::var("PSP_SMOKE_WEAPON") {
         world
             .equip_weapon(psp_core::inventory::WeaponId(
@@ -448,7 +472,7 @@ async fn main() {
             })
             .unwrap_or_default(),
     );
-    let mut paused = false;
+    let mut paused = persistent_run && !save_store.enabled();
     let mut weapon_open = false;
     let mut shop_open = false;
     let mut shop_menu = ShopMenu::default();
@@ -516,7 +540,12 @@ async fn main() {
     }
     let mut camera_target = point(world.position(), 1.0);
     let mut previous_mouse = mouse_position();
-    let mut message = "Welcome aboard. Follow the blue lights to the mission terminal.".to_owned();
+    let mut message = if persistent_run && !save_store.enabled() {
+        "Saving is unavailable. Existing save data is preserved."
+    } else {
+        "Welcome aboard. Follow the blue lights to the mission terminal."
+    }
+    .to_owned();
     let mut message_time = 6.0_f32;
     let mut hit_flash = 0.0_f32;
     let capture = std::env::var_os("PSP_GAME_CAPTURE");
@@ -536,6 +565,9 @@ async fn main() {
     let mut frames = 0;
     loop {
         let delta = get_frame_time().clamp(0.0, 0.1);
+        if is_quit_requested() {
+            break;
+        }
         if is_key_pressed(KeyCode::Escape) {
             shop_open = false;
             weapon_open = false;
@@ -899,8 +931,11 @@ async fn main() {
                 if button("Inventory  /  Tab", y + 90.0) {
                     weapon_open = true;
                 }
-                if button("New session", y + 150.0) {
-                    world = World::default();
+                if button("Save progress / F5", y + 150.0) {
+                    save_store.flush(&world.profile());
+                }
+                if button("Return to lobby / keep gear", y + 210.0) {
+                    world = World::from_profile(world.profile()).expect("live profile is valid");
                     inventory_menu = InventoryMenu::default();
                     hunter = Hunter::default();
                     feedback = Feedback::default();
@@ -915,18 +950,22 @@ async fn main() {
                     pending_art = false;
                     pending_heal = false;
                     camera_target = point(world.position(), 1.0);
-                    message = "New solo session started.".to_owned();
+                    message =
+                        "Returned to the lobby. Your gear and progression are kept.".to_owned();
                     message_time = 4.0;
                 }
-                if button("Quit", y + 210.0) || is_key_pressed(KeyCode::Q) {
+                if button("Quit", y + 270.0) || is_key_pressed(KeyCode::Q) {
                     break;
                 }
-                let note =
-                    "Progress lasts for this session. Saving and multiplayer are not implemented.";
+                let note = &save_store.status;
                 let w = measure_text(note, None, 17, 1.0).width;
-                draw_text(note, (screen_width() - w) / 2.0, y + 286.0, 17.0, LIGHTGRAY);
+                draw_text(note, (screen_width() - w) / 2.0, y + 330.0, 17.0, LIGHTGRAY);
             }
         }
+        if is_key_pressed(KeyCode::F5) {
+            save_store.flush(&world.profile());
+        }
+        save_store.tick(&world.profile(), delta);
         // Use a visible in-window pointer for both inventory and pause menus.
         // Hide the system pointer here to avoid drawing two cursors.
         show_mouse(!paused);
@@ -1012,4 +1051,5 @@ async fn main() {
         }
         next_frame().await;
     }
+    save_store.flush(&world.profile());
 }

@@ -13,6 +13,15 @@ pub struct WeaponItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InventoryState {
+    pub meseta: u32,
+    pub weapons: Vec<WeaponItem>,
+    pub discs: Vec<PhotonArt>,
+    pub equipped: WeaponId,
+    pub next_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Inventory {
     meseta: u32,
     weapons: Vec<WeaponItem>,
@@ -47,6 +56,52 @@ impl Default for Inventory {
     }
 }
 impl Inventory {
+    pub fn snapshot(&self) -> InventoryState {
+        InventoryState {
+            meseta: self.meseta,
+            weapons: self.weapons.clone(),
+            discs: self.discs.clone(),
+            equipped: self.equipped,
+            next_id: self.next_id,
+        }
+    }
+    pub fn from_state(state: InventoryState) -> Result<Self, &'static str> {
+        if state.meseta > MAX_MESETA
+            || state.weapons.is_empty()
+            || state.weapons.len() + state.discs.len() > INVENTORY_CAPACITY
+            || state.next_id == 0
+        {
+            return Err("Invalid saved inventory capacity, wallet or identifiers.");
+        }
+        let mut ids = std::collections::HashSet::new();
+        let mut assigned = Vec::new();
+        for w in &state.weapons {
+            if w.id.0 == 0 || w.id.0 >= state.next_id || !ids.insert(w.id.0) {
+                return Err("Invalid or duplicate saved weapon identifier.");
+            }
+            if let Some(art) = w.loadout.photon_art {
+                if !state.discs.contains(&art) || assigned.contains(&art) {
+                    return Err("Invalid saved PA assignment.");
+                }
+                assigned.push(art);
+            }
+        }
+        for (i, art) in state.discs.iter().enumerate() {
+            if state.discs[..i].contains(art) {
+                return Err("Duplicate saved PA disc.");
+            }
+        }
+        if !ids.contains(&state.equipped.0) {
+            return Err("Saved equipped weapon is not owned.");
+        }
+        Ok(Self {
+            meseta: state.meseta,
+            weapons: state.weapons,
+            discs: state.discs,
+            equipped: state.equipped,
+            next_id: state.next_id,
+        })
+    }
     pub fn meseta(&self) -> u32 {
         self.meseta
     }

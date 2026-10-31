@@ -19,13 +19,23 @@ LOBBY SHOP
 Mira runs the gold-lit counter on the right side of the lobby. Approach and E
 opens her shop. Click Buy stock / Sell items, select an item and click the labeled
 trade button or press Enter. Escape leaves; Tab / I opens inventory.
-New sessions start with 300 Meseta; clearing all three trial waves awards 300.
+New characters start with 300 Meseta; clearing all three trial waves awards 300.
 Weapon prices: Training Sword 60, Hunter Saber 180, Photon Edge 320.
 PA prices: Sweep 120, Cleave 160, Thrust 100. Selling returns half the buy price.
 Purchased weapons have empty PA slots. Selling a sword returns its PA to the
 bag; selling a PA clears its slot. Equipped weapons cannot be sold. Duplicate
 owned PA discs, full bags and insufficient funds are rejected without a charge.
-Currency and purchases last for the current session; New session resets them.
+Currency, purchases and equipment now autosave between launches.
+
+CHARACTER SAVES
+Levels, XP, Meseta, weapons, PA discs and all equipment choices autosave.
+F5 or Save progress in the pause menu saves immediately. Quit and window close
+also save. Reopening places your character in the lobby with full HP and PP;
+an interrupted trial starts over, without replaying rewards. Return to lobby /
+keep gear replaces the old New session reset. The level cap is 100.
+Windows save: %LOCALAPPDATA%\PhantasyStarPortableRust\profile.json
+A previous version is retained as profile.json.bak. Invalid saves are preserved
+and saving is disabled for that run; the pause menu shows save status.
 
 PRESENTATION
 The lobby has segmented deck plates and structural scenery. The forest has
@@ -64,9 +74,8 @@ standalone EXE instead works with the original Hunter and animated Forest Crawle
 The field is an original forest clearing. The Hunter has beveled armor and a
 17-bone rig with distinct combo and photon clips. F2 toggles bones. Player and
 field art remain placeholders; this is a Classic-inspired prototype with
-original balance, not an exact PSO2 recreation. Progress is session-only.
-Inventory lasts for the session; New session restores the starter bag. Item drops,
-multiple enemies, saving across launches and multiplayer are not implemented yet.
+original balance, not an exact PSO2 recreation. Character progression is saved.
+Item drops, multiple enemies and multiplayer are not implemented yet.
 
 MODEL VIEWER
 Double-click model-viewer.exe. The original sample crystal is embedded; no game

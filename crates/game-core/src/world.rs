@@ -262,6 +262,20 @@ fn actor_step_free(from: Position, to: Position, other: Position) -> bool {
         || (after_squared > before_squared && outward >= 0.0)
 }
 impl World {
+    pub fn profile(&self) -> crate::profile::Profile {
+        crate::profile::Profile {
+            level: self.session.hunter().level,
+            experience: self.session.hunter().experience,
+            inventory: self.inventory.snapshot(),
+        }
+    }
+    pub fn from_profile(profile: crate::profile::Profile) -> Result<Self, &'static str> {
+        Ok(Self {
+            session: Session::from_progression(profile.level, profile.experience)?,
+            inventory: Inventory::from_state(profile.inventory)?,
+            ..Self::default()
+        })
+    }
     pub fn can_shop(&self) -> bool {
         self.session.location() == Location::Lobby
             && !self.defeated()

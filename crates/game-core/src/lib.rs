@@ -1,12 +1,14 @@
 //! Rendering-independent solo gameplay. A future server can own the same session.
 
 pub mod inventory;
+pub mod profile;
 pub mod shop;
 pub mod weapon;
 pub mod world;
 
 pub const ENEMY_MAX_HEALTH: u32 = 144;
 pub const TRIAL_WAVES: u8 = 3;
+pub const MAX_LEVEL: u32 = 100;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Location {
@@ -32,10 +34,13 @@ impl Hunter {
 
     fn award_experience(&mut self, amount: u32) {
         self.experience += amount;
-        while self.experience >= self.level * 100 {
+        while self.level < MAX_LEVEL && self.experience >= self.level * 100 {
             self.experience -= self.level * 100;
             self.level += 1;
             self.health = self.max_health();
+        }
+        if self.level == MAX_LEVEL {
+            self.experience = 0;
         }
     }
 }
@@ -98,6 +103,22 @@ impl Default for Session {
 }
 
 impl Session {
+    pub(crate) fn from_progression(level: u32, experience: u32) -> Result<Self, &'static str> {
+        if !(1..=MAX_LEVEL).contains(&level)
+            || experience >= level * 100
+            || (level == MAX_LEVEL && experience != 0)
+        {
+            return Err("Invalid saved level or experience.");
+        }
+        Ok(Self {
+            hunter: Hunter {
+                level,
+                experience,
+                health: 100 + (level - 1) * 20,
+            },
+            ..Self::default()
+        })
+    }
     pub fn hunter(&self) -> &Hunter {
         &self.hunter
     }

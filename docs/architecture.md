@@ -16,14 +16,15 @@ non-finite coordinates, and invalid position/UV indices. It is an inspection
 importer, not a complete OBJ implementation.
 
 `psp-core` owns state transitions. Invalid commands preserve the session. Training
-rewards are issued once; the initial quest cannot be replayed. Damage and XP are
+rewards are issued once per clear; the trial can be redeployed. Damage and XP are
 placeholders. `world` adds a fixed 60 Hz simulation with camera-independent X/Z
 movement, normalized input, sprinting, circle/AABB collision, interaction proximity,
 attack range/facing checks, and cooldowns. The client caps catch-up to six ticks
 and smooths presentation separately. Core tests verify the complete quest loop
 and reject invalid movement inputs. The world now owns enemy chase/telegraph/strike states, delayed sword contacts,
-combos, PP, jumping, step evasion and defeat/retry. There is no persistence or
-multiplayer yet. Command/event types are internal APIs, not a network protocol.
+combos, PP, jumping, step evasion and defeat/retry. A validated core Profile stores
+durable character state; the client handles versioned JSON saves and backups.
+There is no multiplayer yet. Command/event types are internal APIs, not a network protocol.
 
 `psp-client` separates headless and graphical entry points. Rendering is optional
 so import and rule work can run without a display. Macroquad provides rendering
@@ -56,8 +57,8 @@ MTL properties are ignored; an explicit texture image still applies globally.
 4. Extend the initial Classic AQN/AQM rig support with animation events and broader variants.
 5. Add an asset browser and per-file import errors.
 
-Introduce stable entity IDs, serialization/versioning,
-and persistence as solo gameplay develops, before designing a hostable server.
+Owned weapons now have stable instance IDs and character profiles have versioned
+serialization. Extend those solo rules before designing a hostable server.
 
 ## Animation presentation
 
@@ -76,4 +77,5 @@ in presentation. Session damage helpers preserve one-time quest rewards.
 Session now validates sequential wave advances and recovery charges. World owns
 wave breaks, safe spawn choice and per-trial statistics; presentation displays
 results. Final XP remains a single transition, and redeployment preserves the
-current session level without implying persistence to disk.
+character level. Character level, inventory, wallet and equipment now persist
+to disk; encounter state is discarded on load. See [saving](saving.md).

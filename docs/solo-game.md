@@ -20,7 +20,8 @@ are procedural; no PSO2 installation or downloaded assets are required.
 6. Approach the return pad and press E. Returning restores HP. If defeated, E
    restarts at wave 1 with full health, PP and recovery charges, without rewarding XP.
    After extraction, E at the lobby terminal redeploys while preserving session level.
-7. Escape pauses. Choose New session to reset and play again.
+7. Escape pauses. F5 saves immediately; progress also autosaves. **Return to
+   lobby / keep gear** abandons the current encounter without resetting gear.
 
 WASD moves relative to the camera; Shift sprints. Middle-mouse dragging or arrows
 orbit, and the wheel zooms. Movement collides with walls, props, the terminal and
@@ -60,7 +61,8 @@ to capture just the initial scene after three frames. The output folder must exi
 
 The current quest is a three-wave sequence of single enemies with simple local steering. Next
 work is richer player/field art, item drops, multiple enemies and quest reuse,
-then persistence before networking. There is no navigation mesh or imported PSO2
+then networking after the solo rules settle. Character saves now persist between
+launches. There is no navigation mesh or imported PSO2
 player character yet.
 
 The monster HUD identifies full native motion, basic rig animation, or the

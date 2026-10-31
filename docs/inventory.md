@@ -49,10 +49,11 @@ and weapon power when it begins: pausing to equip another sword cannot change
 the damage of a swing already in progress. The new loadout applies on subsequent
 attacks. Inventory menus do not advance combat or regenerate PP.
 
-Inventory and slots survive trial retry and return/redeployment within a session.
-Mira's [lobby shop](lobby-shop.md) buys and sells owned items with session Meseta.
-**New session** creates the starter inventory again. Saving across launches,
-random item drops, shops and disc levels are not implemented in this version.
+Inventory and slots survive retry, return/redeployment and closing the game.
+Mira's [lobby shop](lobby-shop.md) buys and sells owned items with saved Meseta.
+Progress autosaves; F5 saves immediately. Reopening or **Return to lobby / keep
+gear** restores the character in a fresh lobby. See [character saves](saving.md).
+Random item drops and disc levels are not implemented in this version.
 
 Tests cover instance identity, slot retention, single-owner transfers, unowned
 items, full bags, weapon bonuses, active-swing snapshots, and reversible sword

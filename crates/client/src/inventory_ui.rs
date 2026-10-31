@@ -93,7 +93,7 @@ impl InventoryMenu {
         );
         draw_text(
             format!(
-                "{} / {} items  |  {} Meseta  |  Session inventory",
+                "{} / {} items  |  {} Meseta  |  Character inventory",
                 world.inventory().item_count(),
                 INVENTORY_CAPACITY,
                 world.inventory().meseta()
