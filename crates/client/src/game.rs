@@ -8,6 +8,7 @@ use psp_client::{
     monster,
     presentation::{self, Environment},
     scene::{capture_frame, Scene},
+    shop_ui::{self, ShopMenu},
 };
 use psp_core::{
     weapon::PhotonArt,
@@ -61,7 +62,11 @@ fn chase_camera(world: &World, target: Vec3, desired: Vec3) -> Vec3 {
         }) || (world.session().location() == Location::Lobby
             && (p.x - TERMINAL.x).abs() < 0.78
             && (p.z - TERMINAL.z).abs() < 0.53
-            && p.y < 2.0);
+            && p.y < 2.0)
+            || (world.session().location() == Location::Lobby
+                && (p.x - psp_core::world::SHOP_NPC.x).abs() < 0.6
+                && (p.z - psp_core::world::SHOP_NPC.z).abs() < 0.5
+                && p.y < 2.1);
         if blocked {
             return target.lerp(desired, (step - 1) as f32 / 40.0);
         }
@@ -445,6 +450,8 @@ async fn main() {
     );
     let mut paused = false;
     let mut weapon_open = false;
+    let mut shop_open = false;
+    let mut shop_menu = ShopMenu::default();
     let mut inventory_menu = InventoryMenu::default();
     let mut accumulator = 0.0;
     let mut pending_interaction = false;
@@ -468,7 +475,43 @@ async fn main() {
                 distance = 3.0;
                 pitch = 0.25;
             }
-            _ => panic!("PSP_GAME_PREVIEW must be weapon or grip"),
+            "shop" | "keeper" => {
+                for _ in 0..180 {
+                    if world.can_shop() {
+                        break;
+                    }
+                    let p = world.position();
+                    world.step(
+                        Input {
+                            movement: Position {
+                                x: 4.5 - p.x,
+                                z: 6.7 - p.z,
+                            },
+                            ..Input::default()
+                        },
+                        FIXED_STEP,
+                    );
+                }
+                assert!(world.can_shop(), "shop preview could not reach the counter");
+                if preview == "shop" {
+                    assert!(world
+                        .step(
+                            Input {
+                                interact: true,
+                                ..Input::default()
+                            },
+                            FIXED_STEP
+                        )
+                        .contains(&WorldEvent::ShopOpened));
+                    paused = true;
+                    shop_open = true;
+                } else {
+                    yaw = 0.2;
+                    distance = 4.6;
+                    pitch = 0.34;
+                }
+            }
+            _ => panic!("PSP_GAME_PREVIEW must be weapon, grip, shop or keeper"),
         }
     }
     let mut camera_target = point(world.position(), 1.0);
@@ -477,7 +520,10 @@ async fn main() {
     let mut message_time = 6.0_f32;
     let mut hit_flash = 0.0_f32;
     let capture = std::env::var_os("PSP_GAME_CAPTURE");
-    let smoke = std::env::var_os("PSP_GAME_SMOKE").is_some();
+    let shop_smoke = std::env::var_os("PSP_SHOP_SMOKE").is_some();
+    let smoke = std::env::var_os("PSP_GAME_SMOKE").is_some() || shop_smoke;
+    let mut traded_before = false;
+    let mut traded_after = false;
     let mut captured_lobby = false;
     let mut captured_field = false;
     let mut captured_hit = false;
@@ -491,6 +537,7 @@ async fn main() {
     loop {
         let delta = get_frame_time().clamp(0.0, 0.1);
         if is_key_pressed(KeyCode::Escape) {
+            shop_open = false;
             weapon_open = false;
             paused = !paused;
             accumulator = 0.0;
@@ -503,6 +550,7 @@ async fn main() {
             pending_heal = false;
         }
         if is_key_pressed(KeyCode::Tab) || is_key_pressed(KeyCode::I) {
+            shop_open = false;
             weapon_open = !weapon_open;
             paused = weapon_open;
             accumulator = 0.0;
@@ -516,7 +564,7 @@ async fn main() {
             block_attack = true;
             block_art = true;
         }
-        if paused && is_key_pressed(KeyCode::Enter) {
+        if paused && !shop_open && is_key_pressed(KeyCode::Enter) {
             paused = false;
             weapon_open = false;
         }
@@ -561,7 +609,22 @@ async fn main() {
             accumulator = (accumulator + delta).min(FIXED_STEP * 6.0);
             while accumulator >= FIXED_STEP {
                 let location = world.session().location();
-                let input = if smoke {
+                let input = if shop_smoke
+                    && (!traded_before
+                        || (world.session().location() == Location::Lobby
+                            && world.session().quest() == QuestState::Complete
+                            && !traded_after))
+                {
+                    let p = world.position();
+                    Input {
+                        movement: Position {
+                            x: 4.5 - p.x,
+                            z: 6.7 - p.z,
+                        },
+                        interact: world.can_shop(),
+                        ..Input::default()
+                    }
+                } else if smoke {
                     smoke_input(&world)
                 } else {
                     Input {
@@ -588,6 +651,42 @@ async fn main() {
                 pending_heal = false;
                 for event in events {
                     match event {
+                        WorldEvent::ShopOpened => {
+                            if shop_smoke {
+                                use psp_core::{shop::StockItem, weapon::WeaponKind};
+                                if !traded_before {
+                                    world
+                                        .buy(StockItem::Weapon(WeaponKind::HunterSaber))
+                                        .unwrap();
+                                    world.sell_disc(PhotonArt::PiercingThrust).unwrap();
+                                    world
+                                        .buy(StockItem::Disc(PhotonArt::PiercingThrust))
+                                        .unwrap();
+                                    assert_eq!(world.inventory().meseta(), 70);
+                                    traded_before = true;
+                                    println!("Shop smoke: purchase, sell and repurchase verified.");
+                                } else {
+                                    assert_eq!(world.inventory().meseta(), 370);
+                                    world
+                                        .buy(StockItem::Weapon(WeaponKind::PhotonEdge))
+                                        .unwrap();
+                                    world
+                                        .equip_weapon(psp_core::inventory::WeaponId(5))
+                                        .unwrap();
+                                    world
+                                        .equip_photon_art(Some(PhotonArt::PiercingThrust))
+                                        .unwrap();
+                                    assert_eq!(world.inventory().meseta(), 50);
+                                    traded_after = true;
+                                    println!("Shop smoke: trial reward spent and purchased weapon equipped.");
+                                }
+                            } else {
+                                shop_open = true;
+                                weapon_open = false;
+                                paused = true;
+                                shop_menu = ShopMenu::default();
+                            }
+                        }
                         WorldEvent::Gameplay(Event::QuestStarted) => {
                             motion.reset();
                             feedback = Feedback::default();
@@ -628,7 +727,7 @@ async fn main() {
                         WorldEvent::Gameplay(Event::QuestCompleted { .. }) => {
                             motion.die(world.time());
                             message = format!(
-                                "TRIAL CLEAR  /  Level {}  /  +100 XP",
+                                "TRIAL CLEAR  /  Level {}  /  +100 XP  /  +300 Meseta",
                                 world.session().hunter().level
                             );
                             message_time = 5.0;
@@ -660,6 +759,10 @@ async fn main() {
                     camera_target = point(world.position(), 1.0);
                 }
                 accumulator -= FIXED_STEP;
+                if paused {
+                    accumulator = 0.0;
+                    break;
+                }
             }
             hit_flash = (hit_flash - delta).max(0.0);
             message_time = (message_time - delta).max(0.0);
@@ -714,6 +817,9 @@ async fn main() {
         };
         set_camera(&camera);
         draw_environment(&world, &environment);
+        if world.session().location() == Location::Lobby {
+            shop_ui::draw_keeper(world.time());
+        }
         if world.session().location() == Location::TrainingField {
             if let Some(scene) = &mut projection {
                 scene.set_grounded_transform(
@@ -735,6 +841,24 @@ async fn main() {
         }
         feedback.draw_world(&world);
         set_default_camera();
+        if world.session().location() == Location::Lobby {
+            if let Some(label) =
+                psp_client::combat_ui::project(&camera, point(psp_core::world::SHOPKEEPER, 2.5))
+            {
+                let text = "MIRA / FIELD SUPPLY";
+                if label.x > 20.0
+                    && label.x < screen_width() - 180.0
+                    && label.y > 80.0
+                    && label.y < screen_height() - 140.0
+                {
+                    presentation::panel(
+                        Rect::new(label.x - 8., label.y - 20., 185., 28.),
+                        Color::new(1.0, 0.73, 0.3, 1.0),
+                    );
+                    draw_text(text, label.x, label.y, 16., Color::new(1.0, 0.73, 0.3, 1.0));
+                }
+            }
+        }
         feedback.draw_screen(&world, &camera);
         hud(
             &world,
@@ -754,7 +878,12 @@ async fn main() {
                 screen_height(),
                 Color::new(0.0, 0.02, 0.04, 0.85),
             );
-            if weapon_open {
+            if shop_open {
+                if shop_menu.draw(&mut world) {
+                    shop_open = false;
+                    paused = false;
+                }
+            } else if weapon_open {
                 if inventory_menu.draw(&mut world) {
                     weapon_open = false;
                     paused = false;
@@ -808,7 +937,8 @@ async fn main() {
         frames += 1;
         if smoke {
             let complete = world.session().location() == Location::Lobby
-                && world.session().quest() == QuestState::Complete;
+                && world.session().quest() == QuestState::Complete
+                && (!shop_smoke || traded_after);
             if let Some(path) = capture.as_ref() {
                 let path = Path::new(path);
                 let suffix = if complete {

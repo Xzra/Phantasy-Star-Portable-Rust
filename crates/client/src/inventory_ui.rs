@@ -37,7 +37,7 @@ impl Default for InventoryMenu {
     }
 }
 
-fn card(rect: Rect, selected: bool) -> bool {
+pub(crate) fn card(rect: Rect, selected: bool) -> bool {
     let hover = rect.contains(vec2(mouse_position().0, mouse_position().1));
     draw_rectangle(
         rect.x,
@@ -60,7 +60,7 @@ fn card(rect: Rect, selected: bool) -> bool {
     );
     hover && is_mouse_button_pressed(MouseButton::Left)
 }
-fn button(label: &str, rect: Rect) -> bool {
+pub(crate) fn button(label: &str, rect: Rect) -> bool {
     let clicked = card(rect, false);
     draw_text(label, rect.x + 12.0, rect.y + 26.0, 18.0, WHITE);
     clicked
@@ -93,9 +93,10 @@ impl InventoryMenu {
         );
         draw_text(
             format!(
-                "{} / {} items  |  Session inventory",
+                "{} / {} items  |  {} Meseta  |  Session inventory",
                 world.inventory().item_count(),
-                INVENTORY_CAPACITY
+                INVENTORY_CAPACITY,
+                world.inventory().meseta()
             ),
             x + 12.0,
             y + 52.0,

@@ -50,6 +50,7 @@ the damage of a swing already in progress. The new loadout applies on subsequent
 attacks. Inventory menus do not advance combat or regenerate PP.
 
 Inventory and slots survive trial retry and return/redeployment within a session.
+Mira's [lobby shop](lobby-shop.md) buys and sells owned items with session Meseta.
 **New session** creates the starter inventory again. Saving across launches,
 random item drops, shops and disc levels are not implemented in this version.
 

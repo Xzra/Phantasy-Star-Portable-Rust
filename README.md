@@ -28,9 +28,16 @@ J attacks; RMB or F uses the sword's equipped Photon Art. Tab or I opens the
 inventory: select a weapon, E equips it, and 1/2/3 assigns an owned PA disc.
 Three starter swords remember their own PA slots; discs move between weapons.
 H uses a recovery charge. See [inventory controls](docs/inventory.md).
+Mira runs the gold-lit equipment counter on the right side of the lobby. Walk
+up and press E to buy or sell weapons and PA discs. Start with 300 Meseta;
+each completed trial earns another 300. See [the lobby shop](docs/lobby-shop.md).
 Time a fresh attack press when the timing ring turns orange for a stronger follow-up. E interacts or retries
 after defeat. Hold MMB and drag, or use arrows, to orbit; scroll to zoom. Escape
 opens the pause menu.
+
+The [presentation pass](docs/presentation.md) adds readable interface typography,
+framed panels, a darker orbital deck, structural scenery and a greener forest
+clearing. All scenery and shopkeeper art are original.
 
 The combat pass adds three sword swings, PP recovery through normal hits, timed
 follow-ups, dodge windows, and an enemy that chases, telegraphs, lunges and

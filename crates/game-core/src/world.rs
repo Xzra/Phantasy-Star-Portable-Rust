@@ -10,6 +10,8 @@ pub const ATTACK_RANGE: f32 = 2.6;
 pub const TERMINAL: Position = Position { x: 0.0, z: -7.5 };
 pub const ENEMY: Position = Position { x: 0.0, z: -4.0 };
 pub const RETURN_PAD: Position = Position { x: 0.0, z: 9.0 };
+pub const SHOPKEEPER: Position = Position { x: 6.0, z: 5.0 };
+pub const SHOP_NPC: Position = Position { x: 6.0, z: 4.0 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Position {
@@ -110,6 +112,8 @@ impl Attack {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum WorldEvent {
+    ShopOpened,
+    MesetaAwarded(u32),
     Swing,
     Step,
     Jump,
@@ -239,6 +243,33 @@ fn normalized(input: Position) -> Position {
     }
 }
 impl World {
+    pub fn can_shop(&self) -> bool {
+        self.session.location() == Location::Lobby
+            && !self.defeated()
+            && self.position.distance(SHOPKEEPER) <= 2.7
+    }
+    pub fn buy(&mut self, item: crate::shop::StockItem) -> Result<(), &'static str> {
+        if !self.can_shop() {
+            return Err("Visit Mira's counter in the lobby to trade.");
+        }
+        self.inventory.buy(item)
+    }
+    pub fn sell_weapon(&mut self, id: WeaponId) -> Result<u32, &'static str> {
+        if !self.can_shop() {
+            return Err("Visit Mira's counter in the lobby to trade.");
+        }
+        let price = self.inventory.sell_weapon(id)?;
+        self.buffered_photon = false;
+        Ok(price)
+    }
+    pub fn sell_disc(&mut self, art: PhotonArt) -> Result<u32, &'static str> {
+        if !self.can_shop() {
+            return Err("Visit Mira's counter in the lobby to trade.");
+        }
+        let price = self.inventory.sell_disc(art)?;
+        self.buffered_photon = false;
+        Ok(price)
+    }
     pub fn weapon(&self) -> WeaponLoadout {
         self.inventory.equipped()
     }
@@ -351,6 +382,7 @@ impl World {
             return Some("E / Retry the encounter");
         }
         match self.session.location() {
+            Location::Lobby if self.can_shop() => Some("E / Talk to Mira - Equipment shop"),
             Location::Lobby if self.position.distance(TERMINAL) <= 2.2 => {
                 Some("E / Deploy Hunter trial (3 waves)")
             }
@@ -365,6 +397,10 @@ impl World {
         }
     }
     fn terrain_free(&self, position: Position, radius: f32) -> bool {
+        if self.session.location() == Location::Lobby && position.distance(SHOP_NPC) < 0.42 + radius
+        {
+            return false;
+        }
         let edge = self.half_extent() - radius;
         if position.x.abs() > edge || position.z.abs() > edge {
             return false;
@@ -598,6 +634,9 @@ impl World {
         self.last_attack = input.attack;
         let mut events = Vec::new();
         if input.interact {
+            if self.can_shop() {
+                return vec![WorldEvent::ShopOpened];
+            }
             let command = if self.defeated() {
                 Some(Command::RetryQuest)
             } else {
@@ -812,6 +851,13 @@ impl World {
                         power
                     };
                     if let Ok(result) = self.session.damage_enemy(power) {
+                        if result
+                            .iter()
+                            .any(|e| matches!(e, Event::QuestCompleted { .. }))
+                        {
+                            let amount = self.inventory.award_meseta(crate::shop::TRIAL_MESETA);
+                            events.push(WorldEvent::MesetaAwarded(amount));
+                        }
                         if attack.perfect {
                             self.stats.perfect_attacks += 1;
                         }
@@ -872,6 +918,40 @@ mod tests {
         for _ in 0..n {
             world.step(input, FIXED_STEP);
         }
+    }
+    #[test]
+    fn shop_requires_a_living_hunter_near_the_lobby_counter() {
+        let mut world = World::default();
+        let before = world.clone();
+        assert!(world
+            .buy(crate::shop::StockItem::Weapon(
+                crate::weapon::WeaponKind::TrainingSword
+            ))
+            .is_err());
+        assert_eq!(world, before);
+        world.position = Position { x: 4.0, z: 6.2 };
+        assert!(world.can_shop());
+        assert!(world.interaction_prompt().unwrap().contains("Mira"));
+        let events = world.step(
+            Input {
+                interact: true,
+                ..Input::default()
+            },
+            FIXED_STEP,
+        );
+        assert_eq!(events, vec![WorldEvent::ShopOpened]);
+        world
+            .buy(crate::shop::StockItem::Weapon(
+                crate::weapon::WeaponKind::HunterSaber,
+            ))
+            .unwrap();
+        assert_eq!(world.inventory.meseta(), 120);
+        assert!(!world.terrain_free(SHOP_NPC, PLAYER_RADIUS));
+        world.session.execute(Command::StartQuest).unwrap();
+        assert!(!world.can_shop());
+        let before = world.clone();
+        assert!(world.sell_disc(PhotonArt::Sweep).is_err());
+        assert_eq!(world, before);
     }
     #[test]
     fn movement_normalizes_diagonals_and_rejects_invalid_inputs() {
@@ -1443,6 +1523,10 @@ mod tests {
         }
         assert_eq!(w.session.quest(), QuestState::Complete);
         assert_eq!(w.session.hunter().level, 2);
+        assert_eq!(
+            w.inventory.meseta(),
+            crate::shop::STARTING_MESETA + crate::shop::TRIAL_MESETA
+        );
         ticks(
             &mut w,
             150,
@@ -1452,6 +1536,10 @@ mod tests {
             },
         );
         assert_eq!(w.session.hunter().level, 2);
+        assert_eq!(
+            w.inventory.meseta(),
+            crate::shop::STARTING_MESETA + crate::shop::TRIAL_MESETA
+        );
         w.position = RETURN_PAD;
         w.step(
             Input {

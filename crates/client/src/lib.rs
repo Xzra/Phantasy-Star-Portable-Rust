@@ -14,6 +14,8 @@ pub mod combat_ui;
 pub mod inventory_ui;
 #[cfg(feature = "viewer")]
 pub mod presentation;
+#[cfg(feature = "viewer")]
+pub mod shop_ui;
 
 pub mod asset_paths;
 #[cfg(feature = "viewer")]

@@ -17,7 +17,7 @@ pub struct Feedback {
     popups: Vec<Popup>,
     trail: Vec<([Vec3; 2], f32)>,
 }
-fn project(camera: &Camera3D, p: Vec3) -> Option<Vec2> {
+pub fn project(camera: &Camera3D, p: Vec3) -> Option<Vec2> {
     let p = camera.matrix() * p.extend(1.0);
     if p.w <= 0.0 {
         return None;
@@ -164,7 +164,7 @@ pub fn hud(
         draw_rectangle(0.0, h - 12.0, w, 12.0, color);
     }
     let hunter = world.session().hunter();
-    presentation::panel(Rect::new(18.0, 16.0, 280.0, 43.0), CYAN);
+    presentation::panel(Rect::new(18.0, 16.0, 300.0, 43.0), CYAN);
     draw_rectangle(18.0, 16.0, 3.0, 43.0, CYAN);
     draw_text(
         format!("HUNTER / {}", world.weapon().kind.name().to_uppercase()),
@@ -175,11 +175,12 @@ pub fn hud(
     );
     draw_text(
         format!(
-            "LV {}   XP {} / {}   ATK {}",
+            "LV {}   XP {} / {}   ATK {}   {} M",
             hunter.level,
             hunter.experience,
             hunter.level * 100,
-            world.weapon_power()
+            world.weapon_power(),
+            world.inventory().meseta()
         ),
         30.0,
         52.0,
@@ -459,7 +460,7 @@ fn results(world: &World) {
         format!("Enemies cleared   {} / {}", s.defeats, TRIAL_WAVES),
         format!("Timed hits {} / Evades {}", s.perfect_attacks, s.evades),
         format!("Damage {} / Recovery {}", s.damage_taken, s.heals_used),
-        "Reward   +100 XP".to_owned(),
+        "Reward   +100 XP / +300 Meseta".to_owned(),
         "Return pad / E to extract".to_owned(),
     ]
     .iter()

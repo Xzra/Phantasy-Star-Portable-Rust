@@ -15,6 +15,24 @@ Click a PA or use 1/2/3 to slot its disc on the selected weapon; 0 removes it.
 Tab / I / Escape / Enter closes the inventory. Combat pauses while it is open.
 A white/cyan cursor appears above inventory and pause menus for mouse selection.
 
+LOBBY SHOP
+Mira runs the gold-lit counter on the right side of the lobby. Approach and E
+opens her shop. Click Buy stock / Sell items, select an item and click the labeled
+trade button or press Enter. Escape leaves; Tab / I opens inventory.
+New sessions start with 300 Meseta; clearing all three trial waves awards 300.
+Weapon prices: Training Sword 60, Hunter Saber 180, Photon Edge 320.
+PA prices: Sweep 120, Cleave 160, Thrust 100. Selling returns half the buy price.
+Purchased weapons have empty PA slots. Selling a sword returns its PA to the
+bag; selling a PA clears its slot. Equipped weapons cannot be sold. Duplicate
+owned PA discs, full bags and insufficient funds are rejected without a charge.
+Currency and purchases last for the current session; New session resets them.
+
+PRESENTATION
+The lobby has segmented deck plates and structural scenery. The forest has
+faceted canopies, low foliage and a continuous dirt clearing. Interface panels
+use a bundled Liberation Sans font; its license is in THIRD_PARTY_NOTICES.md
+and assets/fonts/OFL.txt. No installed fonts or game assets are required.
+
 INVENTORY
 Three owned swords start in your 32-item bag: Training Sword (ATK +0, cyan),
 Hunter Saber (ATK +3, gold), and Photon Edge (ATK +6, violet). Each remembers its

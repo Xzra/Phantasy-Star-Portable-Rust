@@ -1,4 +1,5 @@
 //! Owned item instances. One PA disc can be slotted into one owned sword at a time.
+use crate::shop::{StockItem, MAX_MESETA, STARTING_MESETA};
 use crate::weapon::{PhotonArt, WeaponKind, WeaponLoadout};
 
 pub const INVENTORY_CAPACITY: usize = 32;
@@ -13,6 +14,7 @@ pub struct WeaponItem {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Inventory {
+    meseta: u32,
     weapons: Vec<WeaponItem>,
     discs: Vec<PhotonArt>,
     equipped: WeaponId,
@@ -36,6 +38,7 @@ impl Default for Inventory {
         })
         .collect();
         Self {
+            meseta: STARTING_MESETA,
             weapons,
             discs: PhotonArt::ALL.to_vec(),
             equipped: WeaponId(1),
@@ -44,6 +47,61 @@ impl Default for Inventory {
     }
 }
 impl Inventory {
+    pub fn meseta(&self) -> u32 {
+        self.meseta
+    }
+    pub(crate) fn award_meseta(&mut self, amount: u32) -> u32 {
+        let before = self.meseta;
+        self.meseta = self.meseta.saturating_add(amount).min(MAX_MESETA);
+        self.meseta - before
+    }
+    pub(crate) fn buy(&mut self, item: StockItem) -> Result<(), &'static str> {
+        if self.meseta < item.price() {
+            return Err("Not enough Meseta. Clear a trial to earn more.");
+        }
+        match item {
+            StockItem::Weapon(w) => {
+                self.grant_weapon(w)?;
+            }
+            StockItem::Disc(a) => self.grant_disc(a)?,
+        }
+        self.meseta -= item.price();
+        Ok(())
+    }
+    pub(crate) fn sell_weapon(&mut self, id: WeaponId) -> Result<u32, &'static str> {
+        if id == self.equipped {
+            return Err("Equip another weapon before selling this one.");
+        }
+        let item = self.weapon(id).ok_or("That weapon is not owned.")?;
+        let price = StockItem::Weapon(item.loadout.kind).price() / 2;
+        let balance = self
+            .meseta
+            .checked_add(price)
+            .filter(|n| *n <= MAX_MESETA)
+            .ok_or("Your wallet is full.")?;
+        self.weapons.retain(|w| w.id != id);
+        self.meseta = balance;
+        Ok(price)
+    }
+    pub(crate) fn sell_disc(&mut self, art: PhotonArt) -> Result<u32, &'static str> {
+        if !self.discs.contains(&art) {
+            return Err("That PA disc is not owned.");
+        }
+        let price = StockItem::Disc(art).price() / 2;
+        let balance = self
+            .meseta
+            .checked_add(price)
+            .filter(|n| *n <= MAX_MESETA)
+            .ok_or("Your wallet is full.")?;
+        self.discs.retain(|a| *a != art);
+        for weapon in &mut self.weapons {
+            if weapon.loadout.photon_art == Some(art) {
+                weapon.loadout.photon_art = None;
+            }
+        }
+        self.meseta = balance;
+        Ok(price)
+    }
     pub fn weapons(&self) -> &[WeaponItem] {
         &self.weapons
     }
@@ -134,6 +192,53 @@ impl Inventory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn shop_failures_do_not_charge_or_remove_items() {
+        let mut bag = Inventory::default();
+        let before = bag.clone();
+        assert!(bag.buy(StockItem::Weapon(WeaponKind::PhotonEdge)).is_err());
+        assert!(bag.buy(StockItem::Disc(PhotonArt::Sweep)).is_err());
+        assert!(bag.sell_weapon(WeaponId(1)).is_err());
+        assert!(bag.sell_weapon(WeaponId(999)).is_err());
+        assert_eq!(bag, before);
+        while bag.item_count() < INVENTORY_CAPACITY {
+            bag.grant_weapon(WeaponKind::TrainingSword).unwrap();
+        }
+        let before = bag.clone();
+        assert!(bag
+            .buy(StockItem::Weapon(WeaponKind::TrainingSword))
+            .is_err());
+        assert_eq!(bag, before);
+    }
+    #[test]
+    fn buying_and_selling_keep_disc_and_weapon_ownership_consistent() {
+        let mut bag = Inventory::default();
+        bag.buy(StockItem::Weapon(WeaponKind::HunterSaber)).unwrap();
+        assert_eq!(bag.meseta(), 120);
+        assert_eq!(bag.weapon(WeaponId(4)).unwrap().loadout.photon_art, None);
+        assert_eq!(bag.sell_weapon(WeaponId(4)).unwrap(), 90);
+        assert_eq!(bag.meseta(), 210);
+        assert_eq!(bag.sell_disc(PhotonArt::Sweep).unwrap(), 60);
+        assert_eq!(bag.weapon(WeaponId(1)).unwrap().loadout.photon_art, None);
+        assert!(!bag.discs().contains(&PhotonArt::Sweep));
+        bag.buy(StockItem::Disc(PhotonArt::Sweep)).unwrap();
+        assert_eq!(bag.meseta(), 150);
+        assert_eq!(bag.disc_owner(PhotonArt::Sweep), None);
+        bag.assign(WeaponId(2), Some(PhotonArt::Sweep)).unwrap();
+        bag.sell_weapon(WeaponId(2)).unwrap();
+        assert!(bag.discs().contains(&PhotonArt::Sweep));
+        assert_eq!(bag.disc_owner(PhotonArt::Sweep), None);
+    }
+    #[test]
+    fn wallet_limit_does_not_destroy_sale_items() {
+        let mut bag = Inventory::default();
+        assert_eq!(bag.award_meseta(u32::MAX), MAX_MESETA - STARTING_MESETA);
+        assert_eq!(bag.award_meseta(300), 0);
+        let before = bag.clone();
+        assert!(bag.sell_disc(PhotonArt::Sweep).is_err());
+        assert!(bag.sell_weapon(WeaponId(2)).is_err());
+        assert_eq!(bag, before);
+    }
     #[test]
     fn weapon_instances_keep_their_slots_when_switching() {
         let mut bag = Inventory::default();
