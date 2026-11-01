@@ -683,7 +683,7 @@ pub fn hair_color(index: u8) -> [f32; 3] {
         [0.3, 0.28, 0.7],
     ][index.min(5) as usize]
 }
-fn body_scale(build: u8) -> Vec3 {
+pub fn body_scale(build: u8) -> Vec3 {
     match build {
         0 => vec3(0.88, 1.04, 0.93),
         2 => vec3(1.12, 0.98, 1.08),

@@ -249,6 +249,14 @@ impl Default for Environment {
     }
 }
 impl Environment {
+    /// Original CPU geometry, shared with interchange exporters; no GPU readback.
+    pub fn export_batches(&self, lobby: bool) -> &[Mesh] {
+        if lobby {
+            &self.lobby.batches
+        } else {
+            &self.forest.batches
+        }
+    }
     pub fn draw(&self, lobby: bool) {
         if lobby {
             self.lobby.draw();

@@ -1,0 +1,11 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.7",
+  "Category": "Games",
+  "Description": "Phantasy Star Rust asset and scene migration workspace for UE 5.7.4. Gameplay port remains separate.",
+  "Plugins": [
+    {"Name": "PythonScriptPlugin", "Enabled": true},
+    {"Name": "EditorScriptingUtilities", "Enabled": true},
+    {"Name": "InterchangeEditor", "Enabled": true}
+  ]
+}

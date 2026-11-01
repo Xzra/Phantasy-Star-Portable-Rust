@@ -31,3 +31,8 @@ required-features = ["viewer"]
 name = "engine-editor"
 path = "src/editor.rs"
 required-features = ["viewer"]
+
+[[bin]]
+name = "unreal-export"
+path = "src/unreal_export_cli.rs"
+required-features = ["viewer"]
