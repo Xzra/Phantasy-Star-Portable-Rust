@@ -4,3 +4,9 @@
 __pycache__/
 
 /projects/**/*.json.bak
+
+/projects/**/UnrealSnapshot-*/
+/unreal/template/Saved/
+/unreal/template/Intermediate/
+/unreal/template/DerivedDataCache/
+/unreal/template/Content/PhantasyMigration*/

@@ -1,5 +1,13 @@
 Phantasy Star Portable Rust - Windows x64 solo game preview
 
+UNREAL ENGINE 5.7.4 TRANSITION
+The Unreal tab exports a fresh migration kit from your project. Or download
+phantasy-star-unreal-5.7.4.zip for the ready-exported starter snapshot. Open its
+PhantasyStar.uproject, then Tools / Phantasy: Import migration kit. Read MIGRATION.md.
+It imports original meshes/rigs/authored clips and creates editable maps/props.
+Rust gameplay, UI and saves still need Blueprint/C++ implementations. Unreal
+is not installed in the build environment; native import is not end-to-end tested.
+
 EDITOR AND SOURCE
 For the full handoff, extract phantasy-star-engine-windows-x64.zip. Open
 START-HERE.html, then Start-Editor.cmd. Character, Animation, Gameplay and Scene

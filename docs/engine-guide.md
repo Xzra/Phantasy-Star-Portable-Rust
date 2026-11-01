@@ -29,6 +29,7 @@ always disable character saves, even if `PSP_SAVE_PATH` is set.
 | Gameplay → Sword / Partisan / Knuckles | Damage, reach and attack-speed multipliers for that class and its PA |
 | Scene | Select lobby/field, add/remove props, select with arrows, change position/size, cycle colors |
 | Help | On-screen workflow and keyboard shortcuts |
+| Unreal | Export a fresh UE 5.7.4 asset/scene migration kit beside the saved project |
 | Ctrl+S / Save | Validate and save the current project; preserve the previous valid file as a backup |
 | F6 / Play | Save and launch the game with that project, without touching a player save |
 | Ctrl+Z / Ctrl+Y | Undo / redo up to 64 edit snapshots |
@@ -217,3 +218,28 @@ freeform mesh modeling, skeletal curve editing, arbitrary imported-model scene
 placement, scripting, terrain sculpting, custom quest editing or a general
 standalone-game exporter. Those features can be added in Rust; the full source
 and data formats are included so the project can grow in that direction.
+
+
+## Transition to Unreal Engine 5.7.4
+
+The **Unreal** tab exports a new snapshot folder beside your project JSON. Open
+its `PhantasyStar.uproject` in UE 5.7.4, then choose **Tools → Phantasy: Import
+migration kit**. The separate `phantasy-star-unreal-5.7.4.zip` release asset is a
+ready-exported starter snapshot. See the kit's `MIGRATION.md` for the setup and
+Blueprint/C++ port order, or [the source template](../unreal/template/MIGRATION.md).
+
+This transition carries original geometry, skinning, authored player animation,
+scenery, props and balance reference data into a fresh Unreal workspace. It does
+not automatically convert Rust gameplay/UI/saves to Unreal runtime systems.
+The Rust game remains the playable reference while those systems are ported.
+
+For a headless export:
+
+```sh
+cargo run --locked --features viewer --bin unreal-export -- --project projects/starter/project.json --output local/MyUnrealSnapshot
+```
+
+Existing export folders and existing Unreal migration asset namespaces are
+preserved. Export to a fresh folder and import to a fresh namespace when iterating.
+The generated GLBs are validated using the official Khronos validator in the
+Windows build. Native Unreal import is not executed in the build environment.

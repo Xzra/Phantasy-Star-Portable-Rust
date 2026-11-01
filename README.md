@@ -21,6 +21,18 @@ No compiler is needed for project settings; Rust is needed for new code features
 See [Start here](START-HERE.md) and the [engine guide](docs/engine-guide.md) for
 first edits, source locations, build commands and the editor's current scope.
 
+## Transition to Unreal Engine 5.7.4
+
+Download `phantasy-star-unreal-5.7.4.zip` from Releases, extract it, open
+`PhantasyStar.uproject`, then use **Tools → Phantasy: Import migration kit**.
+The Rust editor's **Unreal** tab exports the same kit from your own saved project.
+It carries original Hunter rigs and authored animations, Crawler rig, scenery,
+placed props and balance references into native editable UE assets/maps.
+
+Rust gameplay, UI and saves need Blueprint/C++ implementations. The kit includes
+a porting guide and checks imported mesh/animation counts; native UE import is
+not tested in this build environment. See [the migration guide](unreal/template/MIGRATION.md).
+
 ## Start here: playable solo prototype
 
 Download `phantasy-star.exe` from [GitHub Releases](https://github.com/Xzra/Phantasy-Star-Portable-Rust/releases)

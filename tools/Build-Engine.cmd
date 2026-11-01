@@ -17,7 +17,7 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-cargo build --release --locked --features viewer --bin phantasy-star --bin engine-editor --bin model-viewer --bin psp-client
+cargo build --release --locked --features viewer --bin phantasy-star --bin engine-editor --bin model-viewer --bin psp-client --bin unreal-export
 if errorlevel 1 (
   echo Build failed. Read the first error above.
   pause

@@ -92,6 +92,34 @@ fn play(
         }
     }
 }
+fn export_unreal(
+    store: &mut ProjectStore,
+    project: &Project,
+    notice: &mut String,
+) -> Option<std::path::PathBuf> {
+    if !save(store, project, notice) {
+        return None;
+    }
+    let time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let destination = store
+        .path
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join(format!("UnrealSnapshot-{time}"));
+    match psp_client::unreal_export::export(project, &destination) {
+        Ok(path) => {
+            *notice = format!("UE 5.7.4 kit exported beside the project: UnrealSnapshot-{time}");
+            Some(path)
+        }
+        Err(e) => {
+            *notice = e;
+            None
+        }
+    }
+}
 fn class(index: u8) -> WeaponClass {
     match index {
         1 => WeaponClass::Partisan,
@@ -452,9 +480,16 @@ async fn main() {
         let save_clicked = button("Save / Ctrl+S", Rect::new(width - 362.0, 10.0, 126.0, 32.0));
         let reload_clicked = button("Reload", Rect::new(width - 230.0, 10.0, 88.0, 32.0));
         let play_clicked = button("Play / F6", Rect::new(width - 136.0, 10.0, 118.0, 32.0));
-        for (i, name) in ["Character", "Animation", "Gameplay", "Scene", "Help"]
-            .into_iter()
-            .enumerate()
+        for (i, name) in [
+            "Character",
+            "Animation",
+            "Gameplay",
+            "Scene",
+            "Help",
+            "Unreal",
+        ]
+        .into_iter()
+        .enumerate()
         {
             let r = Rect::new(18.0 + i as f32 * 126.0, 52.0, 118.0, 30.0);
             if button(name, r) {
@@ -466,7 +501,7 @@ async fn main() {
         }
         let left = Rect::new(18.0, 94.0, 300.0, height - 146.0);
         let viewport = Rect::new(332.0, 94.0, width - 350.0, height - 146.0);
-        if tab != 4 {
+        if tab < 4 {
             section(
                 left,
                 [
@@ -571,6 +606,23 @@ async fn main() {
                 r,
                 &mut notice,
             ),
+            5 => {
+                section(
+                    Rect::new(18.0, 94.0, width - 36.0, height - 146.0),
+                    "UNREAL ENGINE 5.7.4 / MIGRATION KIT",
+                );
+                let lines=["Export character rigs and animations, scenery, props and balance reference.",
+                    "The new folder is created beside your project JSON; existing exports are preserved.",
+                    "Open its .uproject, then Tools > Phantasy: Import migration kit.",
+                    "Gameplay still needs Blueprint/C++ implementation. Read the included MIGRATION.md.",
+                    "Native Unreal import is not tested in this build environment."];
+                for (i, line) in lines.iter().enumerate() {
+                    label(line, 36.0, 153.0 + i as f32 * 28.0, 17.0, WHITE);
+                }
+                if button("Export UE 5.7.4 kit", Rect::new(36.0, 310.0, 240.0, 38.0)) {
+                    export_unreal(&mut store, &project, &mut notice);
+                }
+            }
             _ => {
                 section(
                     Rect::new(18.0, 94.0, width - 36.0, height - 146.0),
@@ -594,7 +646,7 @@ async fn main() {
         }
         if tab == 3 {
             scene_view(&project, scene, selected_prop, yaw, viewport, &environment);
-        } else if tab != 4 {
+        } else if tab < 3 {
             let c = psp_core::character::Character {
                 name: project.character.name.clone(),
                 armor: project.character.armor,
@@ -717,6 +769,13 @@ async fn main() {
             if frames == 4 && std::env::var_os("PSP_EDITOR_PLAYTEST").is_some() {
                 play(&mut store, &project, &mut notice, &mut child);
                 assert!(child.is_some(), "{notice}");
+            }
+            if frames == 4 && std::env::var_os("PSP_UNREAL_EXPORT_SMOKE").is_some() {
+                let path = export_unreal(&mut store, &project, &mut notice)
+                    .expect("editor Unreal export failed");
+                assert!(path.join("PhantasyStar.uproject").exists());
+                println!("Editor Unreal export smoke passed: {}", path.display());
+                tab = 5;
             }
             let finished = if frames >= 6 && std::env::var_os("PSP_EDITOR_PLAYTEST").is_some() {
                 match child

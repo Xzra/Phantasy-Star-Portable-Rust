@@ -46,3 +46,11 @@ combat tuning and prop placement. Adding weapon classes, new gameplay rules,
 mesh topology, new authored poses, quests or terrain still means editing Rust.
 It does not yet have general scene graphs, arbitrary imported-model placement,
 scripting, animation curve/bone editing or a one-click standalone exporter.
+
+## Move editing to Unreal 5.7.4
+
+The **Unreal** tab exports a fresh asset/scene kit beside your current project.
+Open that kit's `PhantasyStar.uproject` and follow `MIGRATION.md`. A ready-exported
+starter kit is also published as `phantasy-star-unreal-5.7.4.zip`. Meshes, rigs,
+authored player clips, scenery, props and balance references transfer; gameplay,
+UI and saving still need Blueprint/C++ implementations in Unreal.
